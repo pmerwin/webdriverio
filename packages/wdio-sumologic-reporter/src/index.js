@@ -1,4 +1,4 @@
-import request from 'request'
+import got from 'got'
 import dateFormat from 'dateformat'
 import stringify from 'json-stringify-safe'
 
@@ -14,7 +14,7 @@ const DATE_FORMAT = 'yyyy-mm-dd HH:mm:ss,l o'
  * Initialize a new sumologic test reporter.
  */
 export default class SumoLogicReporter extends WDIOReporter {
-    constructor (options) {
+    constructor(options) {
         options = Object.assign({
             // don't create a log file
             stdout: true,
@@ -37,14 +37,14 @@ export default class SumoLogicReporter extends WDIOReporter {
         this.errorCount = 0
         this.specs = {}
         this.results = {}
-        this.interval = setInterval(::this.sync, this.options.syncInterval)
+        this.interval = setInterval(this.sync.bind(this), this.options.syncInterval)
     }
 
-    get isSynchronised () {
+    get isSynchronised() {
         return this.unsynced.length === 0
     }
 
-    onRunnerStart (runner) {
+    onRunnerStart(runner) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'runner:start',
@@ -52,7 +52,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onSuiteStart (suite) {
+    onSuiteStart(suite) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'suite:start',
@@ -60,7 +60,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onTestStart (test) {
+    onTestStart(test) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'test:start',
@@ -68,7 +68,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onTestSkip (test) {
+    onTestSkip(test) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'test:skip',
@@ -76,7 +76,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onTestPass (test) {
+    onTestPass(test) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'test:pass',
@@ -84,7 +84,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onTestFail (test) {
+    onTestFail(test) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'test:fail',
@@ -92,7 +92,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onTestEnd (test) {
+    onTestEnd(test) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'test:end',
@@ -100,7 +100,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onSuiteEnd (suite) {
+    onSuiteEnd(suite) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'suite:end',
@@ -108,7 +108,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    onRunnerEnd (runner) {
+    onRunnerEnd(runner) {
         this.unsynced.push(stringify({
             time: dateFormat(new Date(), DATE_FORMAT),
             event: 'runner:end',
@@ -116,7 +116,7 @@ export default class SumoLogicReporter extends WDIOReporter {
         }))
     }
 
-    sync () {
+    async sync() {
         /**
          * don't synchronise logs if
          *  - we've already send out a request and are waiting for the successful response
@@ -135,17 +135,11 @@ export default class SumoLogicReporter extends WDIOReporter {
         this.isSynchronising = true
         log.debug('start synchronization')
 
-        request({
-            method: 'POST',
-            uri: this.options.sourceAddress,
-            body: logLines
-        }, (err, resp) => {
-            const failed = Boolean(err) || resp.statusCode < 200 || resp.statusCode >= 400
-
-            /* istanbul ignore if  */
-            if (failed) {
-                return log.error('failed send data to Sumo Logic:\n', err.stack ? err.stack : err)
-            }
+        try {
+            const resp = await got(this.options.sourceAddress, {
+                method: 'POST',
+                json: logLines
+            })
 
             /**
              * remove transfered logs from log bucket
@@ -155,8 +149,10 @@ export default class SumoLogicReporter extends WDIOReporter {
             /**
              * reset sync flag so we can sync again
              */
-            log.debug(`synchronised collector data, server status: ${resp.statusCode}`)
             this.isSynchronising = false
-        })
+            return log.debug(`synchronised collector data, server status: ${resp.statusCode}`)
+        } catch (err) {
+            return log.error('failed send data to Sumo Logic:\n', err.stack ? err.stack : err)
+        }
     }
 }

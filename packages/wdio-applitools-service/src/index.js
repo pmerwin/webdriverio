@@ -9,23 +9,25 @@ const DEFAULT_VIEWPORT = {
 }
 
 export default class ApplitoolsService {
-    constructor () {
+    constructor(options) {
+        this.options = options
         this.eyes = new Eyes()
     }
 
     /**
      * set API key in onPrepare hook and start test
      */
-    beforeSession (config) {
-        const applitoolsConfig = config.applitools || {}
-        const key = applitoolsConfig.key || config.applitoolsKey || process.env.APPLITOOLS_KEY
-        const serverUrl = applitoolsConfig.serverUrl || config.applitoolsServerUrl || process.env.APPLITOOLS_SERVER_URL
+    beforeSession() {
+        const key = this.options.key || process.env.APPLITOOLS_KEY
+        const serverUrl = this.options.serverUrl || process.env.APPLITOOLS_SERVER_URL
 
         if (!key) {
             throw new Error('Couldn\'t find an Applitools "applitools.key" in config nor "APPLITOOLS_KEY" in the environment')
         }
 
-        // Optionally set a specific server url
+        /**
+         * Optionally set a specific server url
+         */
         if (serverUrl) {
             this.eyes.setServerUrl(serverUrl)
         }
@@ -33,17 +35,17 @@ export default class ApplitoolsService {
         this.isConfigured = true
         this.eyes.setApiKey(key)
 
-        if (applitoolsConfig.proxy) {
-            this.eyes.setProxy(applitoolsConfig.proxy)
+        if (this.options.proxy) {
+            this.eyes.setProxy(this.options.proxy)
         }
 
-        this.viewport = Object.assign(DEFAULT_VIEWPORT, applitoolsConfig.viewport)
+        this.viewport = Object.assign({ ...DEFAULT_VIEWPORT }, this.options.viewport)
     }
 
     /**
      * set custom commands
      */
-    before () {
+    before() {
         if (!this.isConfigured) {
             return
         }
@@ -70,7 +72,7 @@ export default class ApplitoolsService {
         })
     }
 
-    beforeTest (test) {
+    beforeTest(test) {
         if (!this.isConfigured) {
             return
         }
@@ -79,19 +81,19 @@ export default class ApplitoolsService {
         global.browser.call(() => this.eyes.open(global.browser, test.title, test.parent, this.viewport))
     }
 
-    afterTest () {
+    afterTest() {
         if (!this.isConfigured) {
             return
         }
 
-        global.browser.call(::this.eyes.close)
+        global.browser.call(this.eyes.close.bind(this.eyes))
     }
 
-    after () {
+    after() {
         if (!this.isConfigured) {
             return
         }
 
-        global.browser.call(::this.eyes.abortIfNotClosed)
+        global.browser.call(this.eyes.abortIfNotClosed.bind(this.eyes))
     }
 }

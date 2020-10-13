@@ -32,7 +32,7 @@
  * </example>
  *
  * @alias $$
- * @param {String|Function} selector  selector or JS Function to fetch multiple elements
+ * @param {String|Function|Matcher} selector  selector, JS Function, or Matcher object to fetch multiple elements
  * @return {ElementArray}
  * @type utility
  *

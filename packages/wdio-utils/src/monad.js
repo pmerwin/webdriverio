@@ -27,8 +27,13 @@ export default function WebDriver (options, modifier, propertiesObject = {}) {
      * WebDriver monad
      */
     function unit (sessionId, commandWrapper) {
+        /**
+         * capabilities attached to the instance prototype not being shown if
+         * logging the instance
+         */
         propertiesObject.commandList = { value: Object.keys(propertiesObject) }
         propertiesObject.options = { value: options }
+        propertiesObject.requestedCapabilities = { value: options.requestedCapabilities }
 
         /**
          * allow to wrap commands if necessary
@@ -53,7 +58,9 @@ export default function WebDriver (options, modifier, propertiesObject = {}) {
         /**
          * assign propertiesObject to itself so the client can be recreated
          */
-        propertiesObject['__propertiesObject__'] = { value: propertiesObject }
+        // eslint-disable-next-line no-unused-vars
+        const { puppeteer, ...propertiesObjectWithoutPuppeteer } = propertiesObject
+        propertiesObject['__propertiesObject__'] = { value: propertiesObjectWithoutPuppeteer }
 
         let client = Object.create(prototype, propertiesObject)
         client.sessionId = sessionId

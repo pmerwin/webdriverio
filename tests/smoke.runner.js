@@ -3,6 +3,8 @@ import path from 'path'
 import assert from 'assert'
 import { promisify } from 'util'
 
+import { sleep } from '../packages/wdio-utils/src/utils'
+
 const fs = {
     readFile: promisify(readFile),
     unlink: promisify(unlink),
@@ -19,8 +21,6 @@ import {
     CUCUMBER_REPORTER_LOGS,
 } from './helpers/fixtures'
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
 async function runTests (tests) {
     /**
      * Usage example: `npm run test:smoke -- customService`
@@ -35,8 +35,8 @@ async function runTests (tests) {
         }
     } else {
         // parallel
-        await Promise.all(tests.map(test => test().catch(() => {
-            throw new Error(`Smoke test failed with name ${test.name}`)
+        await Promise.all(tests.map(test => test().catch((err) => {
+            throw new Error(`Smoke test failed with name ${test.name}, ${err}`)
         })))
     }
 }
@@ -55,7 +55,7 @@ const mochaTestrunner = async () => {
                 path.resolve(__dirname, 'mocha', 'test-skipped.js')
             ]
         })
-    assert.strictEqual(skippedSpecs, 0)
+    assert.strictEqual(skippedSpecs, 1)
 }
 
 /**
@@ -79,10 +79,13 @@ const jasmineTestrunner = async () => {
     const { skippedSpecs } = await launch(
         path.resolve(__dirname, 'helpers', 'config.js'),
         {
-            specs: [path.resolve(__dirname, 'jasmine', 'test.js'), path.resolve(__dirname, 'jasmine', 'test-skipped.js')],
+            specs: [
+                path.resolve(__dirname, 'jasmine', 'test.js'),
+                path.resolve(__dirname, 'jasmine', 'test-skipped.js')
+            ],
             framework: 'jasmine'
         })
-    assert.strictEqual(skippedSpecs, 0)
+    assert.strictEqual(skippedSpecs, 1)
 }
 
 /**
@@ -121,7 +124,10 @@ const cucumberTestrunner = async () => {
             ],
             cucumberOpts: {
                 tagExpression: '(not @SKIPPED_TAG)',
-                ignoreUndefinedDefinitions: true
+                ignoreUndefinedDefinitions: true,
+                retry: 1,
+                retryTagFilter: '@retry',
+                scenarioLevelReporter: true
             }
         }
     )
@@ -283,6 +289,7 @@ const retryPass = async () => {
             specs: [path.resolve(__dirname, 'mocha', 'retry_and_pass.js')],
             outputDir: path.dirname(logfiles[0]),
             specFileRetries: 1,
+            specFileRetriesDelay: 1,
             retryFilename
         })
     if (!await fs.exists(logfiles[0])) {
@@ -317,8 +324,7 @@ const mochaSpecFiltering = async () => {
                 path.resolve(__dirname, 'mocha', 'test-empty.js'),
                 path.resolve(__dirname, 'mocha', 'test-skipped.js'),
                 path.resolve(__dirname, 'mocha', 'test-skipped-grep.js')
-            ],
-            featureFlags: { specFiltering: true }
+            ]
         })
     assert.strictEqual(skippedSpecs, 2)
 }
@@ -335,8 +341,7 @@ const jasmineSpecFiltering = async () => {
                 path.resolve(__dirname, 'jasmine', 'test-skipped.js'),
                 path.resolve(__dirname, 'jasmine', 'test-skipped-grep.js')
             ],
-            framework: 'jasmine',
-            featureFlags: { specFiltering: true }
+            framework: 'jasmine'
         })
     assert.strictEqual(skippedSpecs, 2)
 }

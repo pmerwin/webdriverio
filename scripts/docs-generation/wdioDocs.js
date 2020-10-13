@@ -19,7 +19,8 @@ exports.generateWdioDocs = (sidebars) => {
     const COMMAND_DIR = path.join(__dirname, '..', '..', 'packages', 'webdriverio', 'src', 'commands')
     const COMMANDS = {
         browser: fs.readdirSync(path.join(COMMAND_DIR, 'browser')),
-        element: fs.readdirSync(path.join(COMMAND_DIR, 'element'))
+        element: fs.readdirSync(path.join(COMMAND_DIR, 'element')),
+        mock: fs.readdirSync(path.join(COMMAND_DIR, 'mock'))
     }
 
     for (const [scope, files] of Object.entries(COMMANDS)) {
@@ -30,7 +31,7 @@ exports.generateWdioDocs = (sidebars) => {
             }
 
             const filepath = path.join(COMMAND_DIR, scope, file)
-            const output = path.join(docDir, file.replace('js', 'md'))
+            const output = path.join(docDir, `_${file.replace('js', 'md')}`)
             const options = Object.assign({}, MARKDOX_OPTIONS, { output })
             markdox.process(
                 filepath,

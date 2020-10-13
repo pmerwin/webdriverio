@@ -4,9 +4,10 @@
     "noImplicitAny": true,
     "types": [
       "@wdio/sync",
+      "@wdio/protocols",
       "@wdio/allure-reporter",
-      "@wdio/selenium-standalone-service",
-      "@wdio/shared-store-service"
+      "@wdio/shared-store-service",
+      "@wdio/appium-service"
     ],
     "typeRoots" : ["./types"]
   }

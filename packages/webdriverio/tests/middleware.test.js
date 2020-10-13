@@ -1,6 +1,6 @@
 import logger from '@wdio/logger'
 import { remote } from '../src'
-import request from 'request'
+import got from 'got'
 
 jest.mock('../src/commands/element/waitUntil', () => ({
     __esModule: true,
@@ -64,16 +64,16 @@ describe('middleware', () => {
         expect(await subSubElem.click()).toEqual(null)
         expect(warn.mock.calls).toHaveLength(1)
         expect(warn.mock.calls).toEqual([['Request encountered a stale element - terminating request']])
-        request.retryCnt = 0
+        got.retryCnt = 0
     })
 
     it('should successfully getAttribute of an element that falls stale after being re-found in Safari', async () => {
         const elem = await browser.$('#foo')
         elem.selector = '#nonexisting'
-        request.setMockResponse([{ error: 'no such element', statusCode: 404 }, undefined, undefined, 'bar'])
+        got.setMockResponse([{ error: 'no such element', statusCode: 404 }, undefined, undefined, 'bar'])
         expect(await elem.getAttribute('foo')).toEqual('bar')
         expect(waitForExist.default.mock.calls).toHaveLength(1)
-        request.mockClear()
+        got.mockClear()
     })
 
     it('should successfully click on a stale element', async () => {
@@ -85,6 +85,18 @@ describe('middleware', () => {
         expect(await subSubElem.click()).toEqual(null)
         expect(warn.mock.calls).toHaveLength(1)
         expect(warn.mock.calls).toEqual([['Request encountered a stale element - terminating request']])
+    })
+
+    it('should assign elementId and w3c identifier to element scope after re-found', async () => {
+        const elem = await browser.$('#nonexisting')
+        expect(elem.elementId).toEqual(undefined)
+        expect(elem['element-6066-11e4-a52e-4f735466cecf']).toEqual(undefined)
+
+        elem.selector = '#exists'
+        elem.addCommand('getThis', function() {return this})
+        const elementThis = await elem.getThis()
+        expect(elementThis.elementId).toEqual('some-elem-123')
+        expect(elementThis['element-6066-11e4-a52e-4f735466cecf']).toEqual('some-elem-123')
     })
 
     describe('should NOT wait on element if', () => {

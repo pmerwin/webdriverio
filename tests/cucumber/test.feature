@@ -9,7 +9,10 @@ Feature: Example feature
 
     Scenario: Sync Execution
         When  I click on link "=foo"
-        Then  the title of the page should be "Mock Page Title"
+        Then  the title of the page should be:
+        """
+        Mock Page Title
+        """
 
     Scenario: Async Execution
         When  I click on link "=foo" async
@@ -17,6 +20,10 @@ Feature: Example feature
 
     Scenario: Retry Check
         Then  I should fail once but pass on the second run
+
+    @skip(browserName="chrome")
+    Scenario: Skipped... should never be executed
+        Then  this test should fail
 
     Scenario Outline: Multiple Examples
         Given Foo <foo> and Bar <bar> are passed
@@ -43,3 +50,7 @@ Feature: Example feature
 
     Scenario: failAmbiguousDefinitions
         Given this is ambiguous
+
+    @retry
+    Scenario: failsTheFirstTimeToCheckRetries
+        Then  this steps fails only the first time used

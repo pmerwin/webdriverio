@@ -13,7 +13,7 @@ describe('Mocha smoke test', () => {
     })
 
     it('should return sync value', () => {
-        assert.equal(browser.getTitle(), 'Mock Page Title')
+        expect(browser).toHaveTitle('Mock Page Title')
     })
 
     let hasRun = false
@@ -50,6 +50,12 @@ describe('Mocha smoke test', () => {
         assert.equal(el.$('.selector-2').isExisting(), true)
     })
 
+    it('should allow to reload a session', () => {
+        const sessionIdBefore = browser.sessionId
+        browser.reloadSession()
+        expect(sessionIdBefore).not.toBe(browser.sessionId)
+    })
+
     it('should handle promises in waitUntil callback funciton', () => {
         const results = []
         const result = browser.waitUntil(() => {
@@ -67,7 +73,7 @@ describe('Mocha smoke test', () => {
             browser.waitUntil(() => {
                 elem.click()
                 return false
-            }, 1000)
+            }, { timeout: 1000 })
         } catch (err) {
             // ignored
         }
@@ -78,7 +84,7 @@ describe('Mocha smoke test', () => {
         browser.clickScenario()
 
         return remote({
-            runner: true,
+            runner: 'local',
             hostname: 'localhost',
             port: 4444,
             path: '/',

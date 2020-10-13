@@ -5,7 +5,7 @@ WebdriverIO DevTools Service
 
 With Chrome v63 and up the browser [started to support](https://developers.google.com/web/updates/2017/10/devtools-release-notes#multi-client) multi clients allowing arbitrary clients to access the [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/). This provides interesting opportunities to automate Chrome beyond the [WebDriver protocol](https://www.w3.org/TR/webdriver/). With this service you can enhance the wdio browser object to leverage that access and call Chrome DevTools commands within your tests to e.g. intercept requests, throttle network capabilities or take CSS/JS coverage.
 
-__Note:__ this service currently only supports Chrome v63 and up!
+_**Note:** this service currently only supports Chrome v63 and up, and Chromium (Microsoft Edge is not yet supported)!_
 
 ## Installation
 
@@ -13,9 +13,9 @@ The easiest way is to keep `@wdio/devtools-service` as a devDependency in your `
 
 ```json
 {
-  "devDependencies": {
-    "@wdio/devtools-service": "^5.0.0"
-  }
+    "devDependencies": {
+        "@wdio/devtools-service": "^6.3.7"
+    }
 }
 ```
 
@@ -29,19 +29,16 @@ Instructions on how to install `WebdriverIO` can be found [here.](https://webdri
 
 ## Configuration
 
-In order to use the service you just need to add the service to your service list in your `wdio.conf.js` like:
+In order to use the service you just need to add the service to your service list in your `wdio.conf.js`, like:
 
 ```js
 // wdio.conf.js
 export.config = {
-  // ...
-  services: [['devtools', {
-      debuggerAddress: '10.0.0.3:9222'
-  }]],
-  // ...
+    // ...
+    services: ['devtools'],
+    // ...
 };
 ```
-- `debuggerAddress` - optional parameter, you could set host and port.
 
 ## Usage
 
@@ -92,19 +89,22 @@ Get most common used performance metrics.
 ```js
 console.log(browser.getMetrics())
 /**
- * { load: 355,
- *   speedIndex: 281,
- *   firstInteractive: 366,
- *   firstVisualChange: 264,
- *   lastVisualChange: 389,
- *   firstMeaningfulPaint: 263,
- *   firstCPUIdle: 366,
- *   timeToFirstByte: 16,
- *   firstPaint: 263,
- *   estimatedInputLatency: 16,
- *   firstContentfulPaint: 263,
- *   score: 0.9999913442537731,
- *   domContentLoaded: 346 }
+ * { estimatedInputLatency: 16,
+ *   timeToFirstByte: 566,
+ *   serverResponseTime: 566,
+ *   domContentLoaded: 3397,
+ *   firstVisualChange: 2610,
+ *   firstPaint: 2822,
+ *   firstContentfulPaint: 2822,
+ *   firstMeaningfulPaint: 2822,
+ *   largestContentfulPaint: 2822,
+ *   lastVisualChange: 15572,
+ *   firstCPUIdle: 6135,
+ *   firstInteractive: 6135,
+ *   load: 8429,
+ *   speedIndex: 3259,
+ *   totalBlockingTime: 31,
+ *   cumulativeLayoutShift: 2822 }
  */
 ```
 
@@ -153,7 +153,7 @@ console.log(browser.getMainThreadWorkBreakdown())
 
 #### getPerformanceScore
 
-Returns the [Lighthouse Performance Score](https://developers.google.com/web/tools/lighthouse/scoring) which is a weighted mean of the following metrics: `firstMeaningfulPaint`, `firstCPUIdle`, `firstInteractive`, `speedIndex`, `estimatedInputLatency`.
+Returns the [Lighthouse Performance Score](https://developers.google.com/web/tools/lighthouse/scoring) which is a weighted mean of the following metrics: `firstContentfulPaint`, `speedIndex`, `largestContentfulPaint`, `cumulativeLayoutShift`, `totalBlockingTime`, `firstInteractive`.
 
 ```js
 console.log(browser.getPerformanceScore())
@@ -250,15 +250,6 @@ it('should take JS coverage', () => {
 })
 ```
 
-### `cdpConnection` Command
-
-Returns the host and port the Chrome DevTools interface is connected to.
-
-```js
-const connection = browser.cdpConnection()
-console.log(connection);  // outputs: { host: 'localhost', port: 50700 }
-```
-
 ### `getNodeId(selector)` and `getNodeIds(selector)` Command
 
 Helper method to get the nodeId of an element in the page. NodeIds are similar like WebDriver node ids an identifier for a node. It can be used as a parameter for other Chrome DevTools methods, e.g. `DOM.focus`.
@@ -323,9 +314,20 @@ console.log(browser.getPageWeight())
 // }
 ```
 
+### Setting Download Paths for the Browser
+
+The `cdp` command can be used to call the [`Page.setDownloadBehavior`](https://chromedevtools.github.io/devtools-protocol/tot/Page/#method-setDownloadBehavior) command of Devtools Protocol to set the behavior when downloading a file. Make sure the `downloadPath` is an absolute path and the `browser.cdp()` call is made before the file is downloaded.
+
+```js
+browser.cdp('Page', 'setDownloadBehavior', {
+    behavior: 'allow',
+    downloadPath: '/home/root/webdriverio-project/',
+});
+```
+
 ### Access Puppeteer Instance
 
-The service uses Puppeteer for its automation under the hood. You can get access to the used instance by calling the `getPuppeteer` command. __Note:__ Puppeteer commands are async and either needs to be called within the `call` command or handled via `async/await`:
+The service uses Puppeteer for its automation under the hood. You can get access to the used instance by calling the [`getPuppeteer`](/docs/api/browser/getPuppeteer.html) command. __Note:__ Puppeteer commands are async and either needs to be called within the `call` command or handled via `async/await`:
 
 ```js
 describe('use Puppeteer', () => {
@@ -333,13 +335,13 @@ describe('use Puppeteer', () => {
         browser.url('http://json.org')
 
         const puppeteer = browser.getPuppeteer()
-        const page = browser.call(() => puppeteer.browser.pages())[0]
+        const page = browser.call(() => puppeteer.pages())[0]
         console.log(browser.call(() => page.title()))
     })
 
     it('by using async/await', async () => {
         const puppeteer = browser.getPuppeteer()
-        const page = (await puppeteer.browser.pages())[0]
+        const page = (await puppeteer.pages())[0]
         console.log(await page.title())
     })
 })

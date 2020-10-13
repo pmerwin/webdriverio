@@ -20,11 +20,12 @@ describe('WDIOReporter', () => {
         expect(eventsOnSpy).toBeCalledWith('test:pass', expect.any(Function))
         expect(eventsOnSpy).toBeCalledWith('test:fail', expect.any(Function))
         expect(eventsOnSpy).toBeCalledWith('test:pending', expect.any(Function))
+        expect(eventsOnSpy).toBeCalledWith('test:retry', expect.any(Function))
         expect(eventsOnSpy).toBeCalledWith('test:end', expect.any(Function))
         expect(eventsOnSpy).toBeCalledWith('suite:end', expect.any(Function))
         expect(eventsOnSpy).toBeCalledWith('runner:end', expect.any(Function))
-        expect(eventsOnSpy).toBeCalledWith('client:command', expect.any(Function))
-        expect(eventsOnSpy).toBeCalledWith('client:result', expect.any(Function))
+        expect(eventsOnSpy).toBeCalledWith('client:beforeCommand', expect.any(Function))
+        expect(eventsOnSpy).toBeCalledWith('client:afterCommand', expect.any(Function))
     })
 
     it('should be by default synchronised', () => {
@@ -91,6 +92,6 @@ describe('WDIOReporter', () => {
     })
 
     afterAll(() => {
-        eventsOnSpy.mockClear()
+        eventsOnSpy.mockRestore()
     })
 })

@@ -15,7 +15,7 @@
         browser.switchWindow('google.com')
 
         // switch back via title match
-        browser.switchWindow('Next-gen WebDriver test framework')
+        browser.switchWindow('Next-gen browser and mobile automation test framework for Node.js')
     });
  * </example>
  *

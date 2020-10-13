@@ -7,7 +7,7 @@
  *
  * Note: chaining `$` and `$$` commands only make sense when you use multiple selector strategies. You will otherwise
  * make unnecessary requests that slow down the test (e.g. `$('body').$('div')` will trigger two request whereas
- * `$('body div')` does literary the same with just one request)
+ * `$('body div')` does literally the same with just one request)
  *
  * For more information on how to select specific elements, see [`Selectors`](/docs/selectors.html).
  *
@@ -43,7 +43,7 @@
  * </example>
  *
  * @alias $
- * @param {String|Function} selector  selector or JS Function to fetch a certain element
+ * @param {String|Function|Matcher} selector  selector, JS Function, or Matcher object to fetch a certain element
  * @return {Element}
  * @type utility
  *

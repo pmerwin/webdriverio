@@ -218,6 +218,13 @@ describe('selector strategies helper', () => {
         expect(element.value).toBe('{"name":"startsWith","args":"aFakeString"}')
     })
 
+    it('should find an element by viewmatcher strategy (android only)', () => {
+        const selector = { 'name': 'startsWith', 'args': 'aFakeString', 'class': 'androidx.test.espresso.matcher.ViewMatchers' }
+        const element = findStrategy(selector)
+        expect(element.using).toBe('-android viewmatcher')
+        expect(element.value).toBe('{"name":"startsWith","args":"aFakeString","class":"androidx.test.espresso.matcher.ViewMatchers"}')
+    })
+
     it('should find an element by ui automation strategy (ios only)', () => {
         const element = findStrategy('ios=foo')
         expect(element.using).toBe('-ios uiautomation')
@@ -328,6 +335,12 @@ describe('selector strategies helper', () => {
         element = findStrategy('-android datamatcher:foobar -android datamatcher')
         expect(element.using).toBe('-android datamatcher')
         expect(element.value).toBe('foobar -android datamatcher')
+        element = findStrategy('-android viewmatcher:foobar -android viewmatcher')
+        expect(element.using).toBe('-android viewmatcher')
+        expect(element.value).toBe('foobar -android viewmatcher')
+        element = findStrategy('-android viewtag:foobar -android viewtag')
+        expect(element.using).toBe('-android viewtag')
+        expect(element.value).toBe('foobar -android viewtag')
         element = findStrategy('-ios uiautomation:foobar -ios uiautomation')
         expect(element.using).toBe('-ios uiautomation')
         expect(element.value).toBe('foobar -ios uiautomation')
@@ -363,5 +376,26 @@ describe('selector strategies helper', () => {
         element = findStrategy('ios=foo', true, true)
         expect(element.using).toBe('-ios uiautomation')
         expect(element.value).toBe('foo')
+    })
+
+    it('should find an mobile element using image string', () => {
+        let element = findStrategy('/test.jpg')
+        expect(element.using).toBe('-image')
+        expect(element.value).toBe('/test.jpg')
+
+        element = findStrategy('path/test.png')
+        expect(element.using).toBe('-image')
+        expect(element.value).toBe('path/test.png')
+
+        element = findStrategy('path/test.PNG')
+        expect(element.using).toBe('-image')
+        expect(element.value).toBe('path/test.PNG')
+
+        element = findStrategy('//path//test.svg')
+        expect(element.using).toBe('-image')
+        expect(element.value).toBe('//path//test.svg')
+
+        element = findStrategy('//xpath[@img="/test.png"]')
+        expect(element.using).toBe('xpath')
     })
 })

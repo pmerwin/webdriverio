@@ -1,4 +1,4 @@
-import { removeLineNumbers } from '../src/utils'
+import { isCloudCapability, removeLineNumbers, validObjectOrArray } from '../src/utils'
 
 describe('utils', () => {
     describe('removeLineNumbers', () => {
@@ -18,6 +18,51 @@ describe('utils', () => {
 
         it('should do nothing if there is no line number in path (nix)', () => {
             expect(removeLineNumbers('/test/f.feature')).toBe('/test/f.feature')
+        })
+    })
+
+    describe('validObjectOrArray', () => {
+        describe('objects', () => {
+            it('returns true if not empty', () => {
+                expect(validObjectOrArray({ foo: 'bar' })).toBeTruthy()
+            })
+
+            it('returns false if empty', () => {
+                expect(validObjectOrArray({})).toBeFalsy()
+            })
+        })
+
+        describe('arrays', () => {
+            it('returns true if not empty', () => {
+                expect(validObjectOrArray(['foo', 'bar'])).toBeTruthy()
+            })
+
+            it('returns false if empty', () => {
+                expect(validObjectOrArray([])).toBeFalsy()
+            })
+        })
+    })
+
+    describe('isCloudCapability', () => {
+        it('should detect Browserstack capabilities', ()  => {
+            expect(isCloudCapability({ 'bstack:options': {} })).toBe(true)
+        })
+
+        it('should detect Saucelabs capabilities', ()  => {
+            expect(isCloudCapability({ 'sauce:options': {} })).toBe(true)
+        })
+
+        it('should detect Testingbot capabilities', ()  => {
+            expect(isCloudCapability({ 'tb:options': {} })).toBe(true)
+        })
+
+        it('should detect non-cloud capabilities', ()  => {
+            expect(isCloudCapability({ 'selenoid:options': {} })).toBe(false)
+        })
+
+        it('should handle null or empty capabilities', ()  => {
+            expect(isCloudCapability()).toBe(false)
+            expect(isCloudCapability({})).toBe(false)
         })
     })
 })

@@ -11,10 +11,12 @@ jest.mock('util', () => ({ promisify: (fn) => fn }))
 describe('wdio-runner', () => {
     describe('_fetchDriverLogs', () => {
         let runner
+
         beforeEach(() => {
             runner = new WDIORunner()
             runner.cid = '0-1'
         })
+
         it('not do anything if driver does not support log commands', async () => {
             global.browser = { sessionId: '123' }
 
@@ -103,6 +105,7 @@ describe('wdio-runner', () => {
 
         afterEach(() => {
             fs.writeFile.mockClear()
+            delete global.browser
         })
     })
 
@@ -129,46 +132,6 @@ describe('wdio-runner', () => {
             runner._shutdown = jest.fn()
             await runner.endSession()
             expect(hook).toBeCalledTimes(0)
-        })
-
-        it('should wait for session to be created until shutting down', async () => {
-            const hook = jest.fn()
-            const runner = new WDIORunner()
-            runner._shutdown = jest.fn()
-            global.browser = {
-                deleteSession: jest.fn(),
-                config: { afterSession: [hook] }
-            }
-            setTimeout(() => {
-                global.browser.sessionId = 123
-            }, 200)
-
-            const start = Date.now()
-            await runner.endSession(true)
-            const end = Date.now()
-            expect(hook).toBeCalledTimes(1)
-            expect(global.browser.deleteSession).toBeCalledTimes(1)
-            expect(!global.browser.sessionId).toBe(true)
-            expect(runner._shutdown).toBeCalledTimes(1)
-            expect(end - start).toBeGreaterThanOrEqual(200)
-        })
-
-        it('should attach to session in watch mode', async () => {
-            const runner = new WDIORunner()
-            runner._shutdown = jest.fn()
-            await runner.endSession({ argv: {
-                watch: true,
-                config: { sessionId: 'foo' },
-                caps: { browserName: 'chrome' }
-            } })
-
-            expect(attach).toBeCalledWith({
-                sessionId: 'foo',
-                capabilities: { browserName: 'chrome' }
-            })
-            expect(global.browser.deleteSession).toBeCalledTimes(1)
-            expect(!global.browser.sessionId).toBe(true)
-            expect(runner._shutdown).toBeCalledTimes(1)
         })
 
         it('should work normally when called after framework run in multiremote', async () => {
@@ -204,64 +167,8 @@ describe('wdio-runner', () => {
             expect(hook).toBeCalledTimes(0)
         })
 
-        it('should wait for all sessions to be created until shutting down in multiremote', async () => {
-            const hook = jest.fn()
-            const runner = new WDIORunner()
-            runner.isMultiremote = true
-            runner._shutdown = jest.fn()
-            global.browser = {
-                deleteSession: jest.fn(),
-                config: { afterSession: [hook] },
-                instances: ['foo', 'bar', 'foobar'],
-                foo: {
-                    sessionId: '123',
-                },
-                bar: {},
-            }
-            setTimeout(() => {
-                global.browser.bar.sessionId = 456
-                global.browser.foobar = { sessionId: 789 }
-            }, 200)
-
-            const start = Date.now()
-            await runner.endSession(true)
-            const end = Date.now()
-            expect(hook).toBeCalledTimes(1)
-            expect(global.browser.deleteSession).toBeCalledTimes(1)
-            expect(!global.browser.foo.sessionId).toBe(true)
-            expect(!global.browser.bar.sessionId).toBe(true)
-            expect(!global.browser.foobar.sessionId).toBe(true)
-            expect(runner._shutdown).toBeCalledTimes(1)
-            expect(end - start).toBeGreaterThanOrEqual(200)
-        })
-
-        it('should attach to session in watch mode in multiremote', async () => {
-            const runner = new WDIORunner()
-            runner._shutdown = jest.fn()
-            await runner.endSession({ argv: {
-                watch: true,
-                isMultiremote: true,
-                instances: {
-                    foo: { sessionId: 'foo' },
-                    bar: { sessionId: 'bar' }
-                },
-                caps: {
-                    foo: { capabilities: { browserName: 'chrome' } },
-                    bar: { capabilities: { browserName: 'firefox' } }
-                }
-            } })
-
-            expect(attach.mock.calls[0][0]).toEqual({
-                sessionId: 'foo',
-                capabilities: { browserName: 'chrome' }
-            })
-            expect(attach.mock.calls[1][0]).toEqual({
-                sessionId: 'bar',
-                capabilities: { browserName: 'firefox' }
-            })
-            expect(!global.browser.foo.sessionId).toBe(true)
-            expect(!global.browser.bar.sessionId).toBe(true)
-            expect(runner._shutdown).toBeCalledTimes(1)
+        afterEach(() => {
+            delete global.browser
         })
     })
 
@@ -286,18 +193,16 @@ describe('wdio-runner', () => {
                 reporters: [],
                 before: [before],
                 beforeSession: [beforeSession],
-                framework: 'testWithFailures',
-                featureFlags: {}
+                framework: 'testWithFailures'
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             runner._shutdown = jest.fn()
             runner._initSession = jest.fn().mockReturnValue({
                 capabilities: { browserName: 'chrome' },
                 options: {}
             })
             await runner.run({
-                argv: { reporters: [] },
+                args: { reporters: [] },
                 cid: '0-0',
                 caps,
                 specs
@@ -316,13 +221,11 @@ describe('wdio-runner', () => {
             const config = {
                 framework: 'testNoFailures',
                 reporters: [],
-                beforeSession: [],
-                featureFlags: {}
+                beforeSession: []
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             runner._initSession = jest.fn().mockReturnValue({ options: { capabilities: {} } })
-            const failures = await runner.run({ argv: {}, caps: {} })
+            const failures = await runner.run({ args: {}, caps: {} })
 
             expect(failures).toBe(0)
         })
@@ -332,15 +235,13 @@ describe('wdio-runner', () => {
             const config = {
                 framework: 'testNoFailures',
                 reporters: [],
-                beforeSession: [],
-                featureFlags: {}
+                beforeSession: []
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             global.browser = { url: jest.fn(url => url) }
             runner._startSession = jest.fn().mockReturnValue({ })
             runner._initSession = jest.fn().mockReturnValue({ options: { capabilities: {} } })
-            const failures = await runner.run({ argv: { watch: true }, caps: {} })
+            const failures = await runner.run({ args: { watch: true }, caps: {} })
 
             expect(failures).toBe(0)
             expect(global.browser.url).not.toBeCalled()
@@ -351,14 +252,12 @@ describe('wdio-runner', () => {
             const config = {
                 framework: 'testThrows',
                 reporters: [],
-                beforeSession: [],
-                featureFlags: {}
+                beforeSession: []
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             runner._initSession = jest.fn().mockReturnValue({ options: { capabilities: {} } })
             runner.emit = jest.fn()
-            const failures = await runner.run({ argv: {}, caps: {} })
+            const failures = await runner.run({ args: {}, caps: {} })
 
             expect(failures).toBe(1)
             expect(runner.emit.mock.calls[0]).toEqual(['error', new Error('framework testThrows failed')])
@@ -371,17 +270,15 @@ describe('wdio-runner', () => {
             const config = {
                 framework: 'testThrows',
                 reporters: [],
-                beforeSession: [],
-                featureFlags: {}
+                beforeSession: []
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             runner._shutdown = jest.fn()
             runner.endSession = jest.fn()
             runner._initSession = jest.fn().mockReturnValue({})
             runner.sigintWasCalled = true
             await runner.run({
-                argv: { reporters: [] },
+                args: { reporters: [] },
                 cid: '0-0',
                 caps,
                 specs
@@ -389,7 +286,6 @@ describe('wdio-runner', () => {
 
             expect(runner.endSession).toBeCalledTimes(1)
             expect(runner._shutdown).toBeCalledWith(0)
-            expect(runner.configParser.filterWorkerServices).toBeCalled()
         })
 
         it('should not initSession if there are no tests to run', async () => {
@@ -397,15 +293,13 @@ describe('wdio-runner', () => {
             const config = {
                 framework: 'testNoTests',
                 reporters: [],
-                beforeSession: [],
-                featureFlags: {}
+                beforeSession: []
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             runner._shutdown = jest.fn().mockImplementation((arg) => arg)
             runner._initSession = jest.fn()
 
-            expect(await runner.run({ argv: {}, caps: {} })).toBe(0)
+            expect(await runner.run({ args: {}, caps: {} })).toBe(0)
             expect(runner._shutdown).toBeCalledWith(0)
             expect(runner._initSession).not.toBeCalled()
         })
@@ -417,16 +311,14 @@ describe('wdio-runner', () => {
             const config = {
                 framework: 'testNoFailures',
                 reporters: [],
-                beforeSession: [],
-                featureFlags: {}
+                beforeSession: []
             }
             runner.configParser.getConfig = jest.fn().mockReturnValue(config)
-            runner.configParser.filterWorkerServices = jest.fn()
             runner._shutdown = jest.fn().mockReturnValue('_shutdown')
             runner.endSession = jest.fn()
             runner._initSession = jest.fn().mockReturnValue(null)
             expect(await runner.run({
-                argv: { reporters: [] },
+                args: { reporters: [] },
                 cid: '0-0',
                 caps,
                 specs
@@ -434,8 +326,13 @@ describe('wdio-runner', () => {
 
             expect(runner._shutdown).toBeCalledWith(1)
 
-            // user defined capabilities should be used until browser session is started
+            // user defined capabilities should be used until
+            // browser session is started
             expect(runner.reporter.caps).toEqual(caps)
+        })
+
+        afterEach(() => {
+            delete global.browser
         })
     })
 
@@ -444,7 +341,7 @@ describe('wdio-runner', () => {
             const runner = new WDIORunner()
             const browser = await runner._initSession(
                 { hostname: 'foobar' },
-                [{ browserName: 'chrome' }]
+                [{ browserName: 'chrome1' }]
             )
 
             expect(browser).toBe(global.browser)
@@ -502,14 +399,11 @@ describe('wdio-runner', () => {
         })
 
         afterEach(() => {
-            global.throwRemoteCall = undefined
-
-            if (global.browser) {
-                global.browser.on.mockClear()
-                global.browser = undefined
-                global.$ = undefined
-                global.$$ = undefined
-            }
+            delete global.throwRemoteCall
+            delete global.browser
+            delete global.driver
+            delete global.$
+            delete global.$$
         })
     })
 

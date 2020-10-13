@@ -3,16 +3,6 @@
 declare namespace WebdriverIO {
     interface Browser {
         /**
-         * waits until the condition is fulfilled with a truthy value
-         */
-        waitUntil(
-            condition: () => boolean,
-            timeout?: number,
-            timeoutMsg?: string,
-            interval?: number
-        ): boolean
-
-        /**
          * execute any async action within your test spec
          */
         call: <T>(callback: (...args: any[]) => Promise<T>) => T;
@@ -40,6 +30,7 @@ declare namespace WebdriverIO {
 }
 
 declare var browser: WebdriverIO.BrowserObject;
+declare var driver: WebdriverIO.BrowserObject;
 
 /**
  * find a single element on the page.

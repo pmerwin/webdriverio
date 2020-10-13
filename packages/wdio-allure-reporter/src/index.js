@@ -1,7 +1,7 @@
 import WDIOReporter from '@wdio/reporter'
 import Allure from 'allure-js-commons'
 import Step from 'allure-js-commons/beans/step'
-import { getTestStatus, isEmpty, tellReporter, isMochaEachHooks, getErrorFromFailedTest, isMochaAllHooks } from './utils'
+import { getTestStatus, isEmpty, tellReporter, isMochaEachHooks, getErrorFromFailedTest, isMochaAllHooks, getLinkByTemplate } from './utils'
 import { events, stepStatuses, testStatuses } from './constants'
 
 class AllureReporter extends WDIOReporter {
@@ -25,19 +25,19 @@ class AllureReporter extends WDIOReporter {
     }
 
     registerListeners() {
-        process.on(events.addLabel, ::this.addLabel)
-        process.on(events.addFeature, ::this.addFeature)
-        process.on(events.addStory, ::this.addStory)
-        process.on(events.addSeverity, ::this.addSeverity)
-        process.on(events.addIssue, ::this.addIssue)
-        process.on(events.addTestId, ::this.addTestId)
-        process.on(events.addEnvironment, ::this.addEnvironment)
-        process.on(events.addAttachment, ::this.addAttachment)
-        process.on(events.addDescription, ::this.addDescription)
-        process.on(events.startStep, ::this.startStep)
-        process.on(events.endStep, ::this.endStep)
-        process.on(events.addStep, ::this.addStep)
-        process.on(events.addArgument, ::this.addArgument)
+        process.on(events.addLabel, this.addLabel.bind(this))
+        process.on(events.addFeature, this.addFeature.bind(this))
+        process.on(events.addStory, this.addStory.bind(this))
+        process.on(events.addSeverity, this.addSeverity.bind(this))
+        process.on(events.addIssue, this.addIssue.bind(this))
+        process.on(events.addTestId, this.addTestId.bind(this))
+        process.on(events.addEnvironment, this.addEnvironment.bind(this))
+        process.on(events.addAttachment, this.addAttachment.bind(this))
+        process.on(events.addDescription, this.addDescription.bind(this))
+        process.on(events.startStep, this.startStep.bind(this))
+        process.on(events.endStep, this.endStep.bind(this))
+        process.on(events.addStep, this.addStep.bind(this))
+        process.on(events.addArgument, this.addArgument.bind(this))
     }
 
     onRunnerStart(runner) {
@@ -59,6 +59,9 @@ class AllureReporter extends WDIOReporter {
             this.getLabels(suite).forEach(({ name, value }) => {
                 currentTest.addLabel(name, value)
             })
+            if (suite.description) {
+                this.addDescription(suite)
+            }
             return this.setCaseParameters(suite.cid)
         }
 
@@ -107,11 +110,15 @@ class AllureReporter extends WDIOReporter {
         const currentTest = this.allure.getCurrentTest()
 
         if (!this.isMultiremote) {
-            const { browserName, deviceName } = this.capabilities
-            const targetName = browserName || deviceName || cid
+            const { browserName, deviceName, desired, device } = this.capabilities
+            let targetName = device || browserName || deviceName || cid
+            // custom mobile grids can have device information in a `desired` cap
+            if (desired && desired.deviceName && desired.platformVersion) {
+                targetName = `${device || desired.deviceName} ${desired.platformVersion}`
+            }
             const browserstackVersion = this.capabilities.os_version || this.capabilities.osVersion
-            const version = browserstackVersion || this.capabilities.version || this.capabilities.platformVersion || ''
-            const paramName = deviceName ? 'device' : 'browser'
+            const version = browserstackVersion || this.capabilities.browserVersion || this.capabilities.version || this.capabilities.platformVersion || ''
+            const paramName = (deviceName || device) ? 'device' : 'browser'
             const paramValue = version ? `${targetName}-${version}` : targetName
             currentTest.addParameter('argument', paramName, paramValue)
         } else {
@@ -124,12 +131,12 @@ class AllureReporter extends WDIOReporter {
         currentTest.addLabel('thread', cid)
     }
 
-    getLabels({ tags }){
+    getLabels({ tags }) {
         const labels = []
-        if (tags){
+        if (tags) {
             tags.forEach((tag) => {
                 const label = tag.name.replace(/[@]/, '').split('=')
-                if(label.length === 2){
+                if (label.length === 2) {
                     labels.push({ name: label[0], value: label[1] })
                 }
             })
@@ -188,10 +195,14 @@ class AllureReporter extends WDIOReporter {
             return
         }
 
-        this.allure.startStep(`${command.method} ${command.endpoint}`)
+        this.allure.startStep(command.method
+            ? `${command.method} ${command.endpoint}`
+            : command.command
+        )
 
-        if (!isEmpty(command.body)) {
-            this.dumpJSON('Request', command.body)
+        const payload = command.body || command.params
+        if (!isEmpty(payload)) {
+            this.dumpJSON('Request', payload)
         }
     }
 
@@ -329,7 +340,8 @@ class AllureReporter extends WDIOReporter {
         }
 
         const test = this.allure.getCurrentTest()
-        test.addLabel('issue', issue)
+        const issueLink = getLinkByTemplate(this.options.issueLinkTemplate, issue)
+        test.addLabel('issue', issueLink)
     }
 
     addTestId({ testId }) {
@@ -338,7 +350,8 @@ class AllureReporter extends WDIOReporter {
         }
 
         const test = this.allure.getCurrentTest()
-        test.addLabel('testId', testId)
+        const tmsLink = getLinkByTemplate(this.options.tmsLinkTemplate, testId)
+        test.addLabel('testId', tmsLink)
     }
 
     addEnvironment({ name, value }) {
@@ -350,13 +363,13 @@ class AllureReporter extends WDIOReporter {
         test.addParameter('environment-variable', name, value)
     }
 
-    addDescription({ description, type }) {
+    addDescription({ description, descriptionType }) {
         if (!this.isAnyTestRunning()) {
             return false
         }
 
         const test = this.allure.getCurrentTest()
-        test.setDescription(description, type)
+        test.setDescription(description, descriptionType)
     }
 
     addAttachment({ name, content, type = 'text/plain' }) {
@@ -410,7 +423,12 @@ class AllureReporter extends WDIOReporter {
 
     isScreenshotCommand(command) {
         const isScrenshotEndpoint = /\/session\/[^/]*\/screenshot/
-        return isScrenshotEndpoint.test(command.endpoint)
+        return (
+            // WebDriver protocol
+            isScrenshotEndpoint.test(command.endpoint) ||
+            // DevTools protocol
+            command.command === 'takeScreenshot'
+        )
     }
 
     dumpJSON(name, json) {
@@ -485,10 +503,10 @@ class AllureReporter extends WDIOReporter {
      * Assign test description to test
      * @name addDescription
      * @param {string} description - description for test
-     * @param {string} type - description type 'text'\'html'\'markdown'
+     * @param {string} descriptionType - description type 'text'\'html'\'markdown'
      */
-    static addDescription = (description, type) => {
-        tellReporter(events.addDescription, { description, type })
+    static addDescription = (description, descriptionType) => {
+        tellReporter(events.addDescription, { description, descriptionType })
     }
 
     /**

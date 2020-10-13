@@ -29,18 +29,16 @@ export default class WorkerInstance extends EventEmitter {
      * @param  {string}   configFile  path to config file (for sub process to parse)
      * @param  {object}   caps        capability object
      * @param  {string[]} specs       list of paths to test files to run in this worker
-     * @param  {object}   server      configuration details about automation backend this session is using
      * @param  {number}   retries     number of retries remaining
      * @param  {object}   execArgv    execution arguments for the test run
      */
-    constructor (config, { cid, configFile, caps, specs, server, execArgv, retries }, stdout, stderr) {
+    constructor(config, { cid, configFile, caps, specs, execArgv, retries }, stdout, stderr) {
         super()
         this.cid = cid
         this.config = config
         this.configFile = configFile
         this.caps = caps
         this.specs = specs
-        this.server = server || {}
         this.execArgv = execArgv
         this.retries = retries
         this.isBusy = false
@@ -51,7 +49,7 @@ export default class WorkerInstance extends EventEmitter {
     /**
      * spawns process to kick of wdio-runner
      */
-    startProcess () {
+    startProcess() {
         const { cid, execArgv } = this
         const argv = process.argv.slice(2)
 
@@ -71,9 +69,9 @@ export default class WorkerInstance extends EventEmitter {
             stdio: ['inherit', 'pipe', 'pipe', 'ipc']
         })
 
-        childProcess.on('message', ::this._handleMessage)
-        childProcess.on('error', ::this._handleError)
-        childProcess.on('exit', ::this._handleExit)
+        childProcess.on('message', this._handleMessage.bind(this))
+        childProcess.on('error', this._handleError.bind(this))
+        childProcess.on('exit', this._handleExit.bind(this))
 
         /* istanbul ignore if */
         if (!process.env.JEST_WORKER_ID) {
@@ -84,7 +82,7 @@ export default class WorkerInstance extends EventEmitter {
         return childProcess
     }
 
-    _handleMessage (payload) {
+    _handleMessage(payload) {
         const { cid, childProcess } = this
 
         /**
@@ -103,7 +101,6 @@ export default class WorkerInstance extends EventEmitter {
             } else {
                 this.sessionId = payload.content.sessionId
                 delete payload.content.sessionId
-                Object.assign(this.server, payload.content)
             }
             return
         }
@@ -131,12 +128,12 @@ export default class WorkerInstance extends EventEmitter {
         this.emit('message', Object.assign(payload, { cid }))
     }
 
-    _handleError (payload) {
+    _handleError(payload) {
         const { cid } = this
         this.emit('error', Object.assign(payload, { cid }))
     }
 
-    _handleExit (exitCode) {
+    _handleExit(exitCode) {
         const { cid, childProcess, specs, retries } = this
 
         /**
@@ -156,8 +153,8 @@ export default class WorkerInstance extends EventEmitter {
      * @param  {object} argv     arguments for functions to call
      * @return null
      */
-    postMessage (command, argv) {
-        const { cid, configFile, caps, specs, server, retries, isBusy } = this
+    postMessage(command, args) {
+        const { cid, configFile, caps, specs, retries, isBusy } = this
 
         if (isBusy && command !== 'endSession') {
             return log.info(`worker with cid ${cid} already busy and can't take new commands`)
@@ -171,7 +168,7 @@ export default class WorkerInstance extends EventEmitter {
             this.childProcess = this.startProcess()
         }
 
-        this.childProcess.send({ cid, command, configFile, argv, caps, specs, server, retries })
+        this.childProcess.send({ cid, command, configFile, args, caps, specs, retries })
         this.isBusy = true
     }
 }

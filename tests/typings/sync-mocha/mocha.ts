@@ -7,4 +7,22 @@ const suite: WebdriverIO.Suite = {
     pending: true
 }
 
+const config: WebdriverIO.Config = {
+    mochaOpts: {
+        timeout: 3000,
+        allowUncaught: true,
+        require: ['@babel/register', './test/helpers/common.js'],
+        compilers: ['coffee:coffee-script/register']
+    }
+}
+
+describe('foo', () => {
+    it('bar', () => {
+        expect(browser).toHaveTitle('some title')
+
+        const el = $('selector')
+        expect(el).toHaveTextContaining('foobar')
+    })
+})
+
 export default {}

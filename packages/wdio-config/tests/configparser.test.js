@@ -41,6 +41,7 @@ describe('ConfigParser', () => {
     })
 
     describe('merge', () => {
+        const isWindows = process.platform === 'win32'
         it('should overwrite specs if piped into cli command', () => {
             const configParser = new ConfigParser()
             configParser.addConfigFile(FIXTURES_CONF)
@@ -67,7 +68,12 @@ describe('ConfigParser', () => {
 
             const specs = configParser.getSpecs()
             expect(specs).toHaveLength(1)
-            let featureFileWithoutLine = FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[0]
+            let featureFileWithoutLine = ''
+            if (isWindows){
+                featureFileWithoutLine = FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[0] + ':' + FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[1]
+            } else {
+                featureFileWithoutLine = FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[0]
+            }
             expect(specs).toContain(featureFileWithoutLine)
         })
 
@@ -78,7 +84,12 @@ describe('ConfigParser', () => {
 
             const specs = configParser.getSpecs()
             expect(specs).toHaveLength(1)
-            let featureFileWithoutLine = FIXTURES_CUCUMBER_FEATURE_A_LINE_2_AND_12.split(':')[0]
+            let featureFileWithoutLine = ''
+            if (isWindows){
+                featureFileWithoutLine = FIXTURES_CUCUMBER_FEATURE_A_LINE_2_AND_12.split(':')[0] + ':' + FIXTURES_CUCUMBER_FEATURE_A_LINE_2_AND_12.split(':')[1]
+            } else {
+                featureFileWithoutLine = FIXTURES_CUCUMBER_FEATURE_A_LINE_2_AND_12.split(':')[0]
+            }
             expect(specs).toContain(featureFileWithoutLine)
         })
 
@@ -89,9 +100,16 @@ describe('ConfigParser', () => {
 
             const specs = configParser.getSpecs()
             expect(specs).toHaveLength(2)
-            let featureFileA = FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[0]
+            let featureFileA = ''
+            let featureFileB = ''
+            if (isWindows){
+                featureFileA = FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[0] + ':' + FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[1]
+                featureFileB = FIXTURES_CUCUMBER_FEATURE_B_LINE_7.split(':')[0] + ':' + FIXTURES_CUCUMBER_FEATURE_B_LINE_7.split(':')[1]
+            } else {
+                featureFileA = FIXTURES_CUCUMBER_FEATURE_A_LINE_2.split(':')[0]
+                featureFileB = FIXTURES_CUCUMBER_FEATURE_B_LINE_7.split(':')[0]
+            }
             expect(specs).toContain(featureFileA)
-            let featureFileB = FIXTURES_CUCUMBER_FEATURE_B_LINE_7.split(':')[0]
             expect(specs).toContain(featureFileB)
         })
 
@@ -173,7 +191,7 @@ describe('ConfigParser', () => {
             configParser.merge({ user: 'barfoo', key: '50fa1411-3121-4gb0-9p07-8q326vvbq7b0' })
 
             const config = configParser.getConfig()
-            expect(config.hostname).toBe('ondemand.saucelabs.com')
+            expect(config.hostname).toBe('ondemand.us-west-1.saucelabs.com')
             expect(config.port).toBe(443)
             expect(config.protocol).toBe('https')
             expect(config.user).toBe('barfoo')
@@ -186,8 +204,8 @@ describe('ConfigParser', () => {
             configParser.merge({ user: 'barfoo', key: '50fa1411-3121-4gb0-9p07-8q326vvbq7b0' })
 
             const config = configParser.getConfig()
-            expect(config.hostname).toBe('ondemand.saucelabs.com')
-            expect(config.port).toBe(443)
+            expect(config.hostname).toBe('127.0.0.1')
+            expect(config.port).toBe(4444)
         })
 
         it('should allow specifying a exclude file', () => {
@@ -280,6 +298,17 @@ describe('ConfigParser', () => {
             expect(typeof configParser.getConfig().after).toBe('function')
             expect(typeof configParser.getConfig().onComplete).toBe('function')
         })
+
+        it('should overwrite capabilities', () => {
+            const configParser = new ConfigParser()
+            configParser.addConfigFile(FIXTURES_CONF)
+            expect(configParser.getCapabilities()).toMatchObject([{ browserName: 'chrome' }])
+            configParser.merge({
+                capabilities: [{ browserName: 'safari' }],
+            })
+
+            expect(configParser.getCapabilities()).toMatchObject([{ browserName: 'safari' }])
+        })
     })
 
     describe('addService', () => {
@@ -370,6 +399,15 @@ describe('ConfigParser', () => {
             expect(specs).toContain(path.resolve(FIXTURES_PATH, 'test.mjs'))
         })
 
+        it('should include cjs files', () => {
+            const configParser = new ConfigParser()
+            configParser.addConfigFile(FIXTURES_CONF)
+
+            const cjsFile = path.resolve(FIXTURES_PATH, '*.cjs')
+            const specs = configParser.getSpecs([cjsFile])
+            expect(specs).toContain(path.resolve(FIXTURES_PATH, 'test.cjs'))
+        })
+
         it('should not include other file types', () => {
             const configParser = new ConfigParser()
             configParser.addConfigFile(FIXTURES_CONF)
@@ -397,28 +435,10 @@ describe('ConfigParser', () => {
             configParser.addConfigFile(FIXTURES_CONF)
 
             const config = configParser.getConfig()
-            expect(config.hostname).toBe('ondemand.saucelabs.com')
+            expect(config.hostname).toBe('ondemand.us-west-1.saucelabs.com')
             expect(config.port).toBe(443)
             expect(config.user).toBe('foobar')
             expect(config.key).toBe('50fa142c-3121-4gb0-9p07-8q326vvbq7b0')
-        })
-    })
-
-    describe('filterWorkerServices', () => {
-        const configParser = new ConfigParser()
-        configParser.addConfigFile(FIXTURES_CONF)
-        const config = configParser.getConfig()
-
-        it('should do nothing if services is not an array', () => {
-            config.services = null
-            configParser.filterWorkerServices()
-            expect(config.services).toBeNull()
-        })
-
-        it('should remove non worker services', () => {
-            config.services = ['sauce', 'selenium-standalone']
-            configParser.filterWorkerServices()
-            expect(config.services).toEqual(['sauce'])
         })
     })
 })

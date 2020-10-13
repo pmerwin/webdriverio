@@ -2,12 +2,16 @@ import WDIOCLInterface from '../src/interface'
 import chalk from 'chalk'
 
 const config = {}
-global.console.log = jest.fn()
+const EMPTY_INTERFACE_MESSAGE_OBJECT = {
+    reporter: {},
+    debugger: {}
+}
 
 describe('cli interface', () => {
     let wdioClInterface
 
     beforeEach(() => {
+        global.console.log = jest.fn()
         wdioClInterface = new WDIOCLInterface(config, 5)
         wdioClInterface.log = jest.fn().mockImplementation((...args) => args)
     })
@@ -83,7 +87,10 @@ describe('cli interface', () => {
             name: 'foo',
             content: '456'
         })
-        expect(wdioClInterface.messages).toEqual({ reporter: { foo: ['123', '456'] } })
+        expect(wdioClInterface.messages).toEqual({
+            ...EMPTY_INTERFACE_MESSAGE_OBJECT,
+            reporter: { foo: ['123', '456'] }
+        })
     })
 
     it('should print test error', () => {
@@ -94,7 +101,7 @@ describe('cli interface', () => {
             content: 'printFailureMessage'
         })
         expect(wdioClInterface.onTestError).toBeCalledWith('printFailureMessage')
-        expect(wdioClInterface.messages).toEqual({ reporter: {} })
+        expect(wdioClInterface.messages).toEqual(EMPTY_INTERFACE_MESSAGE_OBJECT)
     })
 
     it('should trigger job:start event on testFrameworkInit', () => {
@@ -117,7 +124,10 @@ describe('cli interface', () => {
         })
 
         expect(wdioClInterface.printReporters).toBeCalledTimes(1)
-        expect(wdioClInterface.messages).toEqual({ reporter: { foo: ['bar'] } })
+        expect(wdioClInterface.messages).toEqual({
+            ...EMPTY_INTERFACE_MESSAGE_OBJECT,
+            reporter: { foo: ['bar'] }
+        })
     })
 
     it('should not store any other messages', () => {
@@ -130,7 +140,7 @@ describe('cli interface', () => {
             content: 'foobar'
         })).toEqual(['0-0', 'worker', 'barfoo', 'foobar'])
 
-        expect(wdioClInterface.messages).toEqual({ reporter: {} })
+        expect(wdioClInterface.messages).toEqual(EMPTY_INTERFACE_MESSAGE_OBJECT)
         expect(wdioClInterface.printReporters).not.toBeCalled()
     })
 
@@ -144,7 +154,7 @@ describe('cli interface', () => {
         })
 
         expect(wdioClInterface.log).toBeCalledTimes(1)
-        expect(wdioClInterface.log).toBeCalledWith('[0-0]', 'Error:', 'foo')
+        expect(wdioClInterface.log).toBeCalledWith('[0-0]', 'bold  Error: ', 'foo')
     })
 
     it('should print message on worker error', () => {
@@ -157,12 +167,12 @@ describe('cli interface', () => {
         })
 
         expect(wdioClInterface.log).toBeCalledTimes(1)
-        expect(wdioClInterface.log).toBeCalledWith('[0-0]', 'Error:', 'bar')
+        expect(wdioClInterface.log).toBeCalledWith('[0-0]', 'bold  Error: ', 'bar')
     })
 
     it('should ignore messages that do not contain a proper origin', () => {
         wdioClInterface.onMessage({ foo: 'bar' })
-        expect(wdioClInterface.messages).toEqual({ reporter: {} })
+        expect(wdioClInterface.messages).toEqual(EMPTY_INTERFACE_MESSAGE_OBJECT)
     })
 
     it('should render a debug screen when command was called', () => {
@@ -192,7 +202,7 @@ describe('cli interface', () => {
                 retries: 0,
                 failed: 0
             })
-            expect(wdioClInterface.messages).toEqual({ reporter: {} })
+            expect(wdioClInterface.messages).toEqual(EMPTY_INTERFACE_MESSAGE_OBJECT)
         })
 
         it('called explicitly', () => {
@@ -206,7 +216,7 @@ describe('cli interface', () => {
                 retries: 0,
                 failed: 0
             })
-            expect(wdioClInterface.messages).toEqual({ reporter: {} })
+            expect(wdioClInterface.messages).toEqual(EMPTY_INTERFACE_MESSAGE_OBJECT)
         })
     })
 
@@ -279,7 +289,7 @@ describe('cli interface', () => {
             cid,
             job,
             retries,
-            message: chalk.bold.yellow('RETRYING')
+            message: chalk.bold(chalk.yellow('RETRYING'))
         }, {
             method: 'onSpecPass',
             cid,
@@ -308,6 +318,14 @@ describe('cli interface', () => {
             wdioClInterface.jobs.set('cid', job)
             wdioClInterface.onSpecSkip(cid, job)
             expect(wdioClInterface.onJobComplete).toBeCalledWith(cid, job, 0, 'SKIPPED', expect.any(Function))
+        })
+
+        it('onSpecRetry with delay', () => {
+            wdioClInterface.onJobComplete = jest.fn()
+            wdioClInterface.specFileRetriesDelay = 2
+            wdioClInterface.jobs.set('cid', job)
+            wdioClInterface.onSpecRetry(cid, job, 3)
+            expect(wdioClInterface.onJobComplete).toBeCalledWith(cid, job, 3, chalk.bold(chalk.yellow('RETRYING') + ' after 2s'))
         })
     })
 
@@ -428,5 +446,10 @@ describe('cli interface', () => {
             expect(result[1]).toContain('Error')
             expect(result[1]).toContain('STRING_ERROR')
         })
+    })
+
+    afterEach(() => {
+        wdioClInterface.specFileRetriesDelay = 0
+        global.console.log.mockRestore()
     })
 })

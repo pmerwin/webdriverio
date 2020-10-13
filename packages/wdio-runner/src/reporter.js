@@ -5,7 +5,7 @@ import { sendFailureMessage } from './utils'
 
 const log = logger('@wdio/runner')
 
-const NOOP = () => {}
+const NOOP = () => { }
 const DEFAULT_SYNC_TIMEOUT = 5000 // 5s
 const DEFAULT_SYNC_INTERVAL = 100 // 100ms
 
@@ -15,19 +15,16 @@ const DEFAULT_SYNC_INTERVAL = 100 // 100ms
  * to all these reporters
  */
 export default class BaseReporter {
-    constructor (config, cid, caps) {
+    constructor(config, cid, caps) {
         this.config = config
         this.cid = cid
         this.caps = caps
 
-        /**
-         * these configurations are not publicly documented as there should be no desire for it
-         */
         this.reporterSyncInterval = this.config.reporterSyncInterval || DEFAULT_SYNC_INTERVAL
         this.reporterSyncTimeout = this.config.reporterSyncTimeout || DEFAULT_SYNC_TIMEOUT
 
         // ensure all properties are set before initializing the reporters
-        this.reporters = config.reporters.map(::this.initReporter)
+        this.reporters = config.reporters.map(this.initReporter.bind(this))
 
     }
 
@@ -37,7 +34,7 @@ export default class BaseReporter {
      * @param  {String} e       event name
      * @param  {object} payload event payload
      */
-    emit (e, payload) {
+    emit(e, payload) {
         payload.cid = this.cid
 
         /**
@@ -60,7 +57,7 @@ export default class BaseReporter {
             )
         ))
 
-        if(reporterOptions) {
+        if (reporterOptions) {
             const fileformat = reporterOptions[1].outputFileFormat
 
             options.cid = this.cid
@@ -86,7 +83,7 @@ export default class BaseReporter {
     /**
      * return write stream object based on reporter name
      */
-    getWriteStreamObject (reporter) {
+    getWriteStreamObject(reporter) {
         return {
             write: /* istanbul ignore next */ (content) => process.send({
                 origin: 'reporter',
@@ -100,7 +97,7 @@ export default class BaseReporter {
      * wait for reporter to finish synchronization, e.g. when sending data asynchronous
      * to a server (e.g. sumo reporter)
      */
-    waitForSync () {
+    waitForSync() {
         const startTime = Date.now()
         return new Promise((resolve, reject) => {
             const interval = setInterval(() => {
@@ -130,7 +127,7 @@ export default class BaseReporter {
     /**
      * initialise reporters
      */
-    initReporter (reporter) {
+    initReporter(reporter) {
         let ReporterClass
         let options = {
             logLevel: this.config.logLevel,
@@ -149,12 +146,12 @@ export default class BaseReporter {
          * check if reporter was passed in from a file, e.g.
          *
          * ```js
-         * const MyCustomeReporter = require('/some/path/MyCustomeReporter.js')
+         * const MyCustomReporter = require('/some/path/MyCustomReporter.js')
          * export.config = {
          *     //...
          *     reporters: [
-         *         MyCustomeReporter, // or
-         *         [MyCustomeReporter, { custom: 'option' }]
+         *         MyCustomReporter, // or
+         *         [MyCustomReporter, { custom: 'option' }]
          *     ]
          *     //...
          * }
@@ -183,7 +180,7 @@ export default class BaseReporter {
          * ```
          */
         if (typeof reporter === 'string') {
-            ReporterClass = initialisePlugin(reporter, 'reporter')
+            ReporterClass = initialisePlugin(reporter, 'reporter').default
             const customLogFile = options.setLogFile(this.cid, reporter)
             options.logFile = customLogFile || this.getLogFile(reporter)
             options.writeStream = this.getWriteStreamObject(reporter)

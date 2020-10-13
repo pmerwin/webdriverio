@@ -206,8 +206,8 @@
       "ref": "https://w3c.github.io/webdriver/#dfn-switch-to-frame",
       "parameters": [{
         "name": "id",
-        "type": "(number|string|object|null)",
-        "description": "one of three possible types: null: this represents the top-level browsing context (i.e., not an iframe), a Number, representing the index of the window object corresponding to a frame, a string representing an element id that can be received using `findElement`.",
+        "type": "(number|object|null)",
+        "description": "one of three possible types: null: this represents the top-level browsing context (i.e., not an iframe), a Number, representing the index of the window object corresponding to a frame, an Element object received using `findElement`.",
         "required": true
       }]
     }
@@ -616,11 +616,6 @@
         "type": "string",
         "description": "string to send as keystrokes to the element",
         "required": true
-      }, {
-        "name": "value",
-        "type": "string[]",
-        "description": "The sequence of keys to type. Workaround https://github.com/appium/appium/issues/12085",
-        "required": false
       }]
     }
   },
@@ -735,7 +730,7 @@
       "ref": "https://w3c.github.io/webdriver/#dfn-delete-cookie",
       "variables": [{
         "name": "name",
-        "description": "name of the cookie to retrieve"
+        "description": "name of the cookie to delete"
       }],
       "parameters": []
     }

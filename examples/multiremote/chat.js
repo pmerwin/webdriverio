@@ -5,32 +5,44 @@
  *
  * To execute it just run it as a spec with a fair amount of timeout:
  * ```sh
- * $ ./node_modules/.bin/mocha examples/multiremote/chat.js -t 9999999 --require @babel/register
+ * $ npx mocha examples/multiremote/chat.js -t 9999999 --require @babel/register
  * ```
  */
 
-import { multiremote } from '../../packages/webdriverio/build'
+const { multiremote } = require('../../packages/webdriverio/build')
 
 let matrix, browserA, browserB
 
 describe('multiremote example', () => {
     before(async () => {
         matrix = await multiremote({
-            browserA: { capabilities: { browserName: 'chrome' } },
-            browserB: { capabilities: { browserName: 'chrome' } }
+            browserA: {
+                capabilities: {
+                    browserName: 'chrome',
+                    acceptInsecureCerts: true
+                }
+            },
+            browserB: {
+                capabilities: {
+                    browserName: 'chrome',
+                    acceptInsecureCerts: true
+                },
+                port: 4445
+            }
         })
         browserA = matrix.browserA
         browserB = matrix.browserB
     })
 
     it('should open chat application', async () => {
-        await matrix.url('https://socket-io-chat.now.sh/')
+        await matrix.url('https://socketio-chat-h9jt.herokuapp.com/')
     })
 
     it('should login the browser', async () => {
         const nameInput = await matrix.$('.usernameInput')
 
-        await nameInput.addValue('Browser A')
+        await nameInput.browserA.addValue('Browser A')
+        await nameInput.browserB.addValue('Browser B')
         await matrix.keys('Enter')
     })
 
@@ -47,7 +59,7 @@ describe('multiremote example', () => {
     })
 
     it('should read the message in browserB', async () => {
-        const msgElemBrowserB = await browserA.$('.inputMessage')
+        const msgElemBrowserB = await browserB.$('.inputMessage')
         const chatLineBrowserB = await browserB.$('.messageBody*=My name is')
         const message = await chatLineBrowserB.getText()
         const name = message.slice(11)
@@ -56,4 +68,6 @@ describe('multiremote example', () => {
         await browserB.keys('Enter')
         await matrix.pause(5000)
     })
+
+    after(() => matrix.deleteSession())
 })

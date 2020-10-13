@@ -1,5 +1,7 @@
-import request from 'request'
+import got from 'got'
 import { remote } from '../../../src'
+
+jest.useFakeTimers()
 
 describe('pause test', () => {
     let browser
@@ -13,26 +15,18 @@ describe('pause test', () => {
     })
 
     it('should pause for value provided as arg', async () => {
-        const start = Date.now()
-        await browser.pause(500)
-        const end = Date.now()
-
-        expect((end - start) > 490).toBe(true)
-        expect((end - start) < 590).toBe(true)
-        expect(request.mock.calls).toHaveLength(1)
+        browser.pause(500) // expect 500ms pause
+        expect(setTimeout)
+            .toHaveBeenLastCalledWith(expect.any(Function), 500)
     })
 
     it('should pause for default value', async () => {
-        const start = Date.now()
-        await browser.pause()
-        const end = Date.now()
-
-        expect((end - start) > 990).toBe(true)
-        expect((end - start) < 1090).toBe(true)
-        expect(request.mock.calls).toHaveLength(1)
+        browser.pause() // expect 1s pause
+        expect(setTimeout)
+            .toHaveBeenLastCalledWith(expect.any(Function), 1000)
     })
 
     afterEach(() => {
-        request.mockClear()
+        got.mockClear()
     })
 })

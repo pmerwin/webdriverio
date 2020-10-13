@@ -1,16 +1,23 @@
-const fs = require('fs')
+const fs = require('fs-extra')
 const path = require('path')
+const ejs = require('ejs')
 
-const ejs = require('../../packages/wdio-cli/node_modules/ejs')
 const config = require('../../website/siteConfig')
 const TEMPLATE_PATH = path.join(__dirname, '..', 'templates', 'api.tpl.ejs')
-const { PROTOCOLS, PROTOCOL_NAMES, MOBILE_PROTOCOLS, VENDOR_PROTOCOLS } = require('../constants')
+const {
+    PROTOCOLS, PROTOCOL_NAMES, MOBILE_PROTOCOLS, VENDOR_PROTOCOLS, PROTOCOL_API_DESCRIPTION
+} = require('../constants')
+
+const category = 'api'
+const PROJECT_ROOT_DIR = path.join(__dirname, '..', '..')
+const API_DOCS_ROOT_DIR = path.join(PROJECT_ROOT_DIR, 'docs', category)
 
 /**
  * Generate Protocol docs
  * @param {object} sidebars website/sidebars
  */
 exports.generateProtocolDocs = (sidebars) => {
+    fs.ensureDirSync(API_DOCS_ROOT_DIR)
     const template = fs.readFileSync(TEMPLATE_PATH, 'utf8')
     const protocolDocs = {}
 
@@ -34,7 +41,7 @@ exports.generateProtocolDocs = (sidebars) => {
                 description.returnTags = [] // tbd
                 description.throwsTags = [] // tbd
                 description.isMobile = MOBILE_PROTOCOLS.includes(protocolName)
-                description.customEditUrl = `${config.repoUrl}/edit/master/packages/wdio-protocols/protocol/${protocolName}.json`
+                description.customEditUrl = `${config.repoUrl}/edit/master/packages/wdio-protocols/protocols/${protocolName}.json`
 
                 let protocolNote
                 if (VENDOR_PROTOCOLS.includes(protocolName)) {
@@ -58,20 +65,28 @@ exports.generateProtocolDocs = (sidebars) => {
                         '---',
                         `id: ${protocolName}`,
                         `title: ${protocol}`,
-                        `custom_edit_url: https://github.com/webdriverio/webdriverio/edit/master/packages/wdio-protocols/protocol/${protocolName}.json`,
+                        `custom_edit_url: https://github.com/webdriverio/webdriverio/edit/master/packages/wdio-protocols/protocols/${protocolName}.json`,
                         '---\n'
                     ].join('\n')]
+
+                    /**
+                     * include API description if existent
+                     */
+                    if (Object.keys(PROTOCOL_API_DESCRIPTION).includes(protocolName)) {
+                        protocolDocs[protocolName].push(PROTOCOL_API_DESCRIPTION[protocolName])
+                    }
                 }
                 protocolDocs[protocolName].push(markdown)
             }
         }
 
-        const docPath = path.join(__dirname, '..', '..', 'docs', 'api', `${protocolName}.md`)
-        fs.writeFileSync(docPath, protocolDocs[protocolName].join('\n---\n'), { encoding: 'utf-8' })
+        const docPath = path.join(API_DOCS_ROOT_DIR, `_${protocolName}.md`)
+        const [preemble, ...apiDocs] = protocolDocs[protocolName]
+        fs.writeFileSync(docPath, preemble + apiDocs.join('\n---\n'), { encoding: 'utf-8' })
 
         // eslint-disable-next-line no-console
         console.log(`Generated docs for ${protocolName} protocol`)
 
-        sidebars.api.Protocols.push(`api/${protocolName}`)
+        sidebars[category].Protocols.push(`${category}/${protocolName}`)
     }
 }

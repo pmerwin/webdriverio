@@ -10,6 +10,9 @@ module.exports = class CustomService {
     onPrepare () {
         console.log('execute onPrepare(config, capabilities)')
     }
+    onWorkerStart () {
+        console.log('execute onWorkerStart(cid, caps, specs, args, execArgv)')
+    }
     beforeSession () {
         console.log('execute beforeSession(config, capabilities, specs)')
     }
@@ -56,16 +59,16 @@ module.exports = class CustomService {
         console.log('execute beforeFeature(uri, feature, scenarios)')
     }
     beforeScenario () {
-        console.log('execute beforeScenario(uri, feature, scenario, sourceLocation)')
+        console.log('execute beforeScenario(uri, feature, scenario, sourceLocation, context)')
     }
     beforeStep () {
-        console.log('execute beforeStep(uri, feature, stepData, context)')
+        console.log('execute beforeStep({ uri, feature, step }, context)')
     }
     afterStep () {
-        console.log('execute afterStep(uri, feature, { error, result, duration, passed }, stepData, context)')
+        console.log('execute afterStep({ uri, feature, step }, context, { error, result, duration, passed, retries })')
     }
     afterScenario () {
-        console.log('execute afterScenario(uri, feature, scenario, result, sourceLocation)')
+        console.log('execute afterScenario(uri, feature, scenario, result, sourceLocation, context)')
     }
     afterFeature () {
         console.log('execute afterFeature(uri, feature, scenarios)')

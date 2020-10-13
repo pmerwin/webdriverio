@@ -39,13 +39,13 @@ describe('validateConfig', () => {
         }
 
         expect(() => validateConfig({
-            foobar: { type: errorCheck }
+            foobar: { type: 'object', validate: errorCheck }
         }, {
             foobar: { message: 'foobar', stack: 'barfoo' }
         })).toThrowError(/Type check for option "foobar" failed: not an error/)
 
         expect(Object.prototype.hasOwnProperty.call(validateConfig({
-            foobar: { type: errorCheck }
+            foobar: { type: 'object', validate: errorCheck }
         }, {
             foobar: new Error('foobar')
         }), 'foobar')).toBe(true)
@@ -71,5 +71,22 @@ describe('validateConfig', () => {
         }, {
             logLevel: 'info'
         }), 'logLevel')).toBe(true)
+    })
+
+    it('should keep certain keys if desired', () => {
+        expect(validateConfig({
+            logLevel: {
+                type: 'string',
+                default: 'trace',
+                match: /(trace|debug|info|warn|error|silent)/
+            }
+        }, {
+            logLevel: 'info',
+            foo: 'bar',
+            bar: 'foo'
+        }, ['foo'])).toEqual({
+            logLevel: 'info',
+            foo: 'bar'
+        })
     })
 })

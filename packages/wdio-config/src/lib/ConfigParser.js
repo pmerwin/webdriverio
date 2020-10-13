@@ -5,16 +5,17 @@ import merge from 'deepmerge'
 
 import logger from '@wdio/logger'
 
-import { detectBackend, removeLineNumbers, isCucumberFeatureWithLineNumber } from '../utils'
+import { detectBackend, removeLineNumbers, isCucumberFeatureWithLineNumber, validObjectOrArray } from '../utils'
 
-import { DEFAULT_CONFIGS, SUPPORTED_HOOKS, NON_WORKER_SERVICES } from '../constants'
+import { DEFAULT_CONFIGS, SUPPORTED_HOOKS, SUPPORTED_FILE_EXTENSIONS } from '../constants'
 
 const log = logger('@wdio/config:ConfigParser')
 const MERGE_OPTIONS = { clone: false }
 
 export default class ConfigParser {
     constructor () {
-        this._config = DEFAULT_CONFIGS
+        this._config = DEFAULT_CONFIGS()
+
         this._capabilities = []
     }
 
@@ -27,13 +28,13 @@ export default class ConfigParser {
             throw new Error('addConfigFile requires filepath')
         }
 
-        var filePath = path.resolve(process.cwd(), filename)
+        const filePath = path.resolve(process.cwd(), filename)
 
         try {
             /**
              * clone the original config
              */
-            var fileConfig = merge(require(filePath).config, {}, MERGE_OPTIONS)
+            const fileConfig = merge(require(filePath).config, {}, MERGE_OPTIONS)
 
             /**
              * merge capabilities
@@ -81,10 +82,10 @@ export default class ConfigParser {
      * @param  {Object} object  desired object to merge into the config object
      */
     merge (object = {}) {
-        this._config = merge(this._config, object, MERGE_OPTIONS)
-        let spec = Array.isArray(object.spec) ? object.spec : []
-        let exclude = Array.isArray(object.exclude) ? object.exclude : []
+        const spec = Array.isArray(object.spec) ? object.spec : []
+        const exclude = Array.isArray(object.exclude) ? object.exclude : []
 
+        this._config = merge(this._config, object, MERGE_OPTIONS)
         /**
          * overwrite config specs that got piped into the wdio command
          */
@@ -95,11 +96,9 @@ export default class ConfigParser {
         }
 
         /**
-         * merge capabilities
+         * overwrite capabilities
          */
-        const defaultTo = Array.isArray(this._capabilities) ? [] : {}
-        this._capabilities = merge(this._capabilities, this._config.capabilities || defaultTo, MERGE_OPTIONS)
-
+        this._capabilities = validObjectOrArray(this._config.capabilities) ? this._config.capabilities : this._capabilities
         /**
          * save original specs if Cucumber's feature line number is provided
          */
@@ -127,13 +126,15 @@ export default class ConfigParser {
          */
         let defaultBackend = detectBackend({})
         if (
+            (this._config.protocol === defaultBackend.protocol) &&
             (this._config.hostname === defaultBackend.hostname) &&
             (this._config.port === defaultBackend.port) &&
-            (this._config.protocol === defaultBackend.protocol)
+            (this._config.path === defaultBackend.path)
         ) {
+            delete this._config.protocol
             delete this._config.hostname
             delete this._config.port
-            delete this._config.protocol
+            delete this._config.path
         }
 
         this._config = merge(detectBackend(this._config), this._config, MERGE_OPTIONS)
@@ -290,13 +291,9 @@ export default class ConfigParser {
         for (let pattern of patterns) {
             let filenames = glob.sync(pattern)
 
-            filenames = filenames.filter(filename =>
-                filename.slice(-3) === '.js' ||
-                filename.slice(-4) === '.mjs' ||
-                filename.slice(-4) === '.es6' ||
-                filename.slice(-3) === '.ts' ||
-                filename.slice(-8) === '.feature' ||
-                filename.slice(-7) === '.coffee')
+            filenames = filenames.filter(
+                (filename) => SUPPORTED_FILE_EXTENSIONS.find(
+                    (ext) => filename.endsWith(ext)))
 
             filenames = filenames.map(filename =>
                 path.isAbsolute(filename) ? path.normalize(filename) : path.resolve(process.cwd(), filename))
@@ -309,17 +306,5 @@ export default class ConfigParser {
         }
 
         return files
-    }
-
-    /**
-     * remove services that has nothing to do in worker
-     */
-    filterWorkerServices () {
-        if (!Array.isArray(this._config.services)) {
-            return
-        }
-        this._config.services = this._config.services.filter((service) => {
-            return !NON_WORKER_SERVICES.includes(service)
-        })
     }
 }

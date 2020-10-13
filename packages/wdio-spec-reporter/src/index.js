@@ -112,7 +112,7 @@ class SpecReporter extends WDIOReporter {
      */
     getTestLink ({ config, sessionId, isMultiremote, instanceName }) {
         const isSauceJob = (
-            config.hostname.includes('saucelabs') ||
+            (config.hostname && config.hostname.includes('saucelabs')) ||
             // only show if multiremote is not used
             config.capabilities && (
                 // check w3c caps
@@ -195,6 +195,13 @@ class SpecReporter extends WDIOReporter {
             // Display the title of the suite
             output.push(`${suiteIndent}${suite.title}`)
 
+            // display suite description (Cucumber only)
+            if (suite.description) {
+                output.push(...suite.description.trim().split('\n')
+                    .map((l) => `${suiteIndent}${this.chalk.grey(l.trim())}`))
+                output.push('') // empty line
+            }
+
             const eventsToReport = this.getEventsToReport(suite)
             for (const test of eventsToReport) {
                 const testTitle = test.title
@@ -231,21 +238,21 @@ class SpecReporter extends WDIOReporter {
         const output = []
 
         // Get the passes
-        if(this.stateCounts.passed > 0) {
+        if (this.stateCounts.passed > 0) {
             const text = `${this.stateCounts.passed} passing ${duration}`
             output.push(this.chalk[this.getColor('passed')](text))
             duration = ''
         }
 
         // Get the failures
-        if(this.stateCounts.failed > 0) {
+        if (this.stateCounts.failed > 0) {
             const text = `${this.stateCounts.failed} failing ${duration}`.trim()
             output.push(this.chalk[this.getColor('failed')](text))
             duration = ''
         }
 
         // Get the skipped tests
-        if(this.stateCounts.skipped > 0) {
+        if (this.stateCounts.skipped > 0) {
             const text = `${this.stateCounts.skipped} skipped ${duration}`.trim()
             output.push(this.chalk[this.getColor('skipped')](text))
         }
@@ -266,7 +273,7 @@ class SpecReporter extends WDIOReporter {
             const suiteTitle = suite.title
             const eventsToReport = this.getEventsToReport(suite)
             for (const test of eventsToReport) {
-                if(test.state !== 'failed') {
+                if (test.state !== 'failed') {
                     continue
                 }
 
@@ -380,26 +387,37 @@ class SpecReporter extends WDIOReporter {
     getEnviromentCombo (caps, verbose = true, isMultiremote = false) {
         const device = caps.deviceName
         const browser = isMultiremote ? 'MultiremoteBrowser' : (caps.browserName || caps.browser)
-        const version = caps.version || caps.platformVersion || caps.browser_version
-        const platform = caps.os ? (caps.os + ' ' + caps.os_version) : (caps.platform || caps.platformName)
+        /**
+         * fallback to different capability types:
+         * browserVersion: W3C format
+         * version: JSONWP format
+         * platformVersion: mobile format
+         * browser_version: invalid BS capability
+         */
+        const version = caps.browserVersion || caps.version || caps.platformVersion || caps.browser_version
+        /**
+         * fallback to different capability types:
+         * platformName: W3C format
+         * platform: JSONWP format
+         * os, os_version: invalid BS capability
+         */
+        const platform = caps.platformName || caps.platform || (caps.os ? caps.os + (caps.os_version ?  ` ${caps.os_version}` : '') : '(unknown)')
 
         // Mobile capabilities
         if (device) {
             const program = (caps.app || '').replace('sauce-storage:', '') || caps.browserName
             const executing = program ? `executing ${program}` : ''
-
             if (!verbose) {
                 return `${device} ${platform} ${version}`
             }
-
             return `${device} on ${platform} ${version} ${executing}`.trim()
         }
 
         if (!verbose) {
-            return (browser + ' ' + (version || '') + ' ' + (platform || '')).trim()
+            return (browser + (version ? ` ${version} ` : ' ') + (platform)).trim()
         }
 
-        return browser + (version ? ` (v${version})` : '') + (platform ? ` on ${platform}` : '')
+        return browser + (version ? ` (v${version})` : '') + (` on ${platform}`)
     }
 }
 

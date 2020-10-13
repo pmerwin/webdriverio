@@ -1,13 +1,18 @@
 const DEFAULT_HOSTNAME = '127.0.0.1'
 const DEFAULT_PORT = 4444
 const DEFAULT_PROTOCOL = 'http'
+const DEFAULT_PATH = '/'
+const LEGACY_PATH = '/wd/hub'
 
 const REGION_MAPPING = {
-    'us': '', // default endpoint
+    'us': 'us-west-1.', // default endpoint
     'eu': 'eu-central-1.',
     'eu-central-1': 'eu-central-1.',
     'us-east-1': 'us-east-1.'
 }
+
+export const validObjectOrArray = (object) => (Array.isArray(object) && object.length > 0) ||
+    (typeof object === 'object' && Object.keys(object).length > 0)
 
 export function getSauceEndpoint (region, isRDC) {
     const shortRegion = REGION_MAPPING[region] ? region : 'us'
@@ -42,11 +47,15 @@ export function isCucumberFeatureWithLineNumber(spec) {
     return specs.some((s) => s.match(/:\d+(:\d+$|$)/))
 }
 
+export function isCloudCapability(cap) {
+    return Boolean(cap && (cap['bstack:options'] || cap['sauce:options'] || cap['tb:options']))
+}
+
 /**
  * helper to detect the Selenium backend according to given capabilities
  */
 export function detectBackend (options = {}, isRDC = false) {
-    let { port, hostname, user, key, protocol, region, headless } = options
+    let { port, hostname, user, key, protocol, region, headless, path } = options
 
     /**
      * browserstack
@@ -56,7 +65,8 @@ export function detectBackend (options = {}, isRDC = false) {
         return {
             protocol: protocol || 'https',
             hostname: hostname || 'hub-cloud.browserstack.com',
-            port: port || 443
+            port: port || 443,
+            path: path || LEGACY_PATH
         }
     }
 
@@ -66,9 +76,10 @@ export function detectBackend (options = {}, isRDC = false) {
      */
     if (typeof user === 'string' && typeof key === 'string' && key.length === 32) {
         return {
-            protocol: protocol || DEFAULT_PROTOCOL,
+            protocol: protocol || 'https',
             hostname: hostname || 'hub.testingbot.com',
-            port: port || 80
+            port: port || 443,
+            path: path || LEGACY_PATH
         }
     }
 
@@ -88,7 +99,8 @@ export function detectBackend (options = {}, isRDC = false) {
         return {
             protocol: protocol || 'https',
             hostname: hostname || getSauceEndpoint(sauceRegion, isRDC),
-            port: port || 443
+            port: port || 443,
+            path: path || LEGACY_PATH
         }
     }
 
@@ -104,19 +116,28 @@ export function detectBackend (options = {}, isRDC = false) {
     ) {
         throw new Error(
             'A "user" or "key" was provided but could not be connected to a ' +
-            'known cloud service (SauceLabs, Browerstack or Testingbot). ' +
+            'known cloud service (Sauce Labs, Browerstack or Testingbot). ' +
             'Please check if given user and key properties are correct!'
         )
     }
 
     /**
-     * no cloud provider detected, fallback to local browser driver
+     * default values if on of the WebDriver criticial options is set
      */
-    return {
-        hostname: hostname || DEFAULT_HOSTNAME,
-        port: port || DEFAULT_PORT,
-        protocol: protocol || DEFAULT_PROTOCOL
+    if (hostname || port || protocol || path) {
+        return {
+            hostname: hostname || DEFAULT_HOSTNAME,
+            port: port || DEFAULT_PORT,
+            protocol: protocol || DEFAULT_PROTOCOL,
+            path: path || DEFAULT_PATH
+        }
     }
+
+    /**
+     * no cloud provider detected, pass on provided params and eventually
+     * fallback to DevTools protocol
+     */
+    return { hostname, port, protocol, path }
 }
 
 /**
@@ -125,7 +146,7 @@ export function detectBackend (options = {}, isRDC = false) {
  * @param  {Object} options   option to check against
  * @return {Object}           validated config enriched with default values
  */
-export function validateConfig (defaults, options) {
+export function validateConfig (defaults, options, keysToKeep = []) {
     const params = {}
 
     for (const [name, expectedOption] of Object.entries(defaults)) {
@@ -141,13 +162,13 @@ export function validateConfig (defaults, options) {
         }
 
         if (typeof options[name] !== 'undefined') {
-            if (typeof expectedOption.type === 'string' && typeof options[name] !== expectedOption.type) {
+            if (typeof options[name] !== expectedOption.type) {
                 throw new Error(`Expected option "${name}" to be type of ${expectedOption.type} but was ${typeof options[name]}`)
             }
 
-            if (typeof expectedOption.type === 'function') {
+            if (typeof expectedOption.validate === 'function') {
                 try {
-                    expectedOption.type(options[name])
+                    expectedOption.validate(options[name])
                 } catch (e) {
                     throw new Error(`Type check for option "${name}" failed: ${e.message}`)
                 }
@@ -158,6 +179,15 @@ export function validateConfig (defaults, options) {
             }
 
             params[name] = options[name]
+        }
+    }
+
+    for (const [name, option] of Object.entries(options)) {
+        /**
+         * keep keys from source object if desired
+         */
+        if (keysToKeep.includes(name)) {
+            params[name] = option
         }
     }
 

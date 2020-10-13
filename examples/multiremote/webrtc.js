@@ -4,17 +4,18 @@
  * If not try to run: `$ npm install @babel/node`
  *
  * To execute it just run it as a spec with a fair amount of timeout:
- * $ ./node_modules/.bin/babel-node ./examples/multiremote/webrtc.js
+ * $ npx babel-node ./examples/multiremote/webrtc.js
  */
 
-import { multiremote } from '../../packages/webdriverio/build'
+const { multiremote } = require('../../packages/webdriverio/build')
 
-(async () => {
+;(async () => {
     const matrix = await multiremote({
         browserA: {
             capabilities: {
                 browserName: 'chrome',
-                chromeOptions: {
+                acceptInsecureCerts: true,
+                'goog:chromeOptions': {
                     args: [
                         'use-fake-device-for-media-stream',
                         'use-fake-ui-for-media-stream',
@@ -23,9 +24,11 @@ import { multiremote } from '../../packages/webdriverio/build'
             }
         },
         browserB: {
+            port: 4445,
             capabilities: {
                 browserName: 'chrome',
-                chromeOptions: {
+                acceptInsecureCerts: true,
+                'goog:chromeOptions': {
                     args: [
                         'use-fake-device-for-media-stream',
                         'use-fake-ui-for-media-stream',

@@ -105,6 +105,12 @@ describe('elements', () => {
         expect(await browser.getElementProperty(textarea[ELEMENT_KEY], 'value')).toBe('foobar')
     })
 
+    it('elementSendKeys for file-type input', async () => {
+        const fileInput = await browser.findElement('css selector', '#upload-test')
+        await browser.elementSendKeys(fileInput[ELEMENT_KEY], 'README.md')
+        expect(await browser.getElementProperty(fileInput[ELEMENT_KEY], 'value')).toBe('C:\\fakepath\\README.md')
+    })
+
     it('elementClear', async () => {
         const textarea = await browser.findElement('css selector', 'textarea')
         await browser.elementClear(textarea[ELEMENT_KEY])
@@ -119,6 +125,99 @@ describe('elements', () => {
     it('partial link text', async () => {
         const link = await browser.findElement('partial link text', 'new tab')
         expect(await browser.getElementText(link[ELEMENT_KEY])).toBe('open new tab')
+    })
+
+    it('should be able to do a drag&drop', async () => {
+        await browser.executeScript('window.scrollTo(0, 0)', [])
+        await browser.performActions([{
+            type: 'pointer',
+            id: 'finger1',
+            parameters: {
+                pointerType: 'mouse'
+            },
+            actions: [{
+                type: 'pointerMove',
+                duration: 0,
+                x: 65,
+                y: 544
+            }, {
+                type: 'pointerDown',
+                button: 0
+            }, {
+                type: 'pause',
+                duration: 10
+            }, {
+                type: 'pointerMove',
+                duration: 100,
+                origin: 'pointer',
+                x: 1,
+                y: -251
+            }, {
+                type: 'pointerUp',
+                button: 0
+            }]
+        }])
+
+        const elem = await browser.findElement('css selector', '.searchinput')
+        expect(await browser.getElementProperty(elem[ELEMENT_KEY], 'value'))
+            .toBe('Dropped!')
+    })
+
+    it('should be able to use keys command', async () => {
+        const textarea = await browser.findElement('css selector', 'textarea')
+        await browser.elementClick(textarea[ELEMENT_KEY])
+        await browser.performActions([{
+            type: 'key',
+            id: 'keyboard',
+            actions: [
+                { type: 'keyDown', value: 'f' },
+                { type: 'keyDown', value: 'o' },
+                { type: 'keyDown', value: 'o' },
+                { type: 'keyDown', value: 'b' },
+                { type: 'keyDown', value: 'a' },
+                { type: 'keyDown', value: 'r' },
+                { type: 'keyDown', value: '😉' },
+                { type: 'keyUp', value: 'f' },
+                { type: 'keyUp', value: 'o' },
+                { type: 'keyUp', value: 'o' },
+                { type: 'keyUp', value: 'b' },
+                { type: 'keyUp', value: 'a' },
+                { type: 'keyUp', value: 'r' },
+                { type: 'keyUp', value: '😉' }
+            ]
+        }])
+        expect(await browser.getElementProperty(textarea[ELEMENT_KEY], 'value'))
+            .toBe('foobar😉')
+    })
+
+    it('should allow to click relative to the center of an element', async () => {
+        const message = await browser.findElement('css selector', '.btn1_right_clicked')
+        const btn2 = await browser.findElement('css selector', '.btn2')
+
+        expect(await browser.getElementCSSValue(message[ELEMENT_KEY], 'display'))
+            .toBe('none')
+        await browser.performActions([{
+            type: 'pointer',
+            id: 'pointer1',
+            parameters: { pointerType: 'mouse' },
+            actions: [{
+                type: 'pointerMove',
+                origin: {
+                    [ELEMENT_KEY]: btn2[ELEMENT_KEY]
+                },
+                x: -50,
+                y: 0
+            }, {
+                type: 'pointerDown',
+                button: 2
+            }, {
+                type: 'pointerUp',
+                button: 2
+            }]
+        }])
+        await new Promise((r) => setTimeout(r, 3000))
+        expect(await browser.getElementCSSValue(message[ELEMENT_KEY], 'display'))
+            .toBe('block')
     })
 })
 

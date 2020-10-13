@@ -4,16 +4,16 @@ import util from 'util'
 import EventEmitter from 'events'
 
 import logger from '@wdio/logger'
-import { initialiseServices, initialisePlugin, executeHooksWithArgs } from '@wdio/utils'
+import { initialiseWorkerService, initialisePlugin, executeHooksWithArgs } from '@wdio/utils'
 import { ConfigParser } from '@wdio/config'
 
 import BaseReporter from './reporter'
-import { runHook, initialiseInstance, filterLogTypes, getInstancesData, attachToMultiremote } from './utils'
+import { runHook, initialiseInstance, filterLogTypes, getInstancesData } from './utils'
 
 const log = logger('@wdio/runner')
 
 export default class Runner extends EventEmitter {
-    constructor () {
+    constructor() {
         super()
         this.configParser = new ConfigParser()
         this.sigintWasCalled = false
@@ -22,15 +22,14 @@ export default class Runner extends EventEmitter {
     /**
      * run test suite
      * @param  {String}    cid            worker id (e.g. `0-0`)
-     * @param  {Object}    argv           cli arguments passed into wdio command
+     * @param  {Object}    args           config arguments passed into worker process
      * @param  {String[]}  specs          list of spec files to run
      * @param  {Object}    caps           capabilities to run session with
      * @param  {String}    configFile     path to config file to get config from
-     * @param  {Object}    server         modified WebDriver target
      * @param  {Number}    retries        number of retries remaining
      * @return {Promise}                  resolves in number of failures for testrun
      */
-    async run ({ cid, argv, specs, caps, configFile, server, retries }) {
+    async run({ cid, args, specs, caps, configFile, retries }) {
         this.cid = cid
         this.specs = specs
         this.caps = caps
@@ -47,47 +46,35 @@ export default class Runner extends EventEmitter {
         /**
          * merge cli arguments into config
          */
-        this.configParser.merge(argv)
-
-        /**
-         * merge host/port changes by service launcher into config
-         */
-        this.configParser.merge(server)
-
-        /**
-         * remove services that has nothing to do in worker
-         */
-        this.configParser.filterWorkerServices()
+        this.configParser.merge(args)
 
         this.config = this.configParser.getConfig()
-
         this.config.specFileRetryAttempts = (this.config.specFileRetries || 0) - (retries || 0)
-
         logger.setLogLevelsConfig(this.config.logLevels, this.config.logLevel)
-
         const isMultiremote = this.isMultiremote = !Array.isArray(this.configParser.getCapabilities())
 
         /**
          * create `browser` stub only if `specFiltering` feature is enabled
          */
-        let browser = this.config.featureFlags.specFiltering === true ? await this._startSession({
+        let browser = await this._startSession({
             ...this.config,
             _automationProtocol: this.config.automationProtocol,
             automationProtocol: './protocol-stub'
-        }, caps) : undefined
+        }, caps)
 
         this.reporter = new BaseReporter(this.config, this.cid, { ...caps })
         /**
          * initialise framework
          */
-        this.framework = initialisePlugin(this.config.framework, 'framework')
+        this.framework = initialisePlugin(this.config.framework, 'framework').default
         this.framework = await this.framework.init(cid, this.config, specs, caps, this.reporter)
         process.send({ name: 'testFrameworkInit', content: { cid, caps, specs, hasTests: this.framework.hasTests() } })
         if (!this.framework.hasTests()) {
             return this._shutdown(0)
         }
 
-        initialiseServices(this.config, caps).map(::this.configParser.addService)
+        initialiseWorkerService(this.config, caps, args.ignoredWorkerServices)
+            .map(this.configParser.addService.bind(this.configParser))
 
         await runHook('beforeSession', this.config, this.caps, this.specs)
         browser = await this._initSession(this.config, this.caps, browser)
@@ -163,7 +150,7 @@ export default class Runner extends EventEmitter {
         /**
          * in watch mode we don't close the session and leave current page opened
          */
-        if (!argv.watch) {
+        if (!args.watch) {
             await this.endSession()
         }
 
@@ -183,7 +170,7 @@ export default class Runner extends EventEmitter {
      * @param  {Object}  browserStub   stubbed `browser` object with only capabilities, config and env flags
      * @return {Promise}               resolves with browser object or null if session couldn't get established
      */
-    async _initSession (config, caps, browserStub) {
+    async _initSession(config, caps, browserStub) {
         const browser = await this._startSession(config, caps)
 
         // return null if session couldn't get established
@@ -229,7 +216,7 @@ export default class Runner extends EventEmitter {
      * @param  {Object}  caps          desired capabilities of session
      * @return {Promise}               resolves with browser object or null if session couldn't get established
      */
-    async _startSession (config, caps) {
+    async _startSession(config, caps) {
         let browser = null
 
         try {
@@ -248,7 +235,7 @@ export default class Runner extends EventEmitter {
     /**
      * fetch logs provided by browser driver
      */
-    async _fetchDriverLogs (config, excludeDriverLogs) {
+    async _fetchDriverLogs(config, excludeDriverLogs) {
         /**
          * only fetch logs if
          */
@@ -316,7 +303,7 @@ export default class Runner extends EventEmitter {
     /**
      * kill worker session
      */
-    async _shutdown (failures) {
+    async _shutdown(failures) {
         try {
             await this.reporter.waitForSync()
         } catch (e) {
@@ -330,19 +317,7 @@ export default class Runner extends EventEmitter {
      * end WebDriver session, a config object can be applied if object has changed
      * within a hook by the user
      */
-    async endSession (payload) {
-        /**
-         * Attach to browser session before killing it in Multiremote
-         */
-        if (!global.browser && payload && payload.argv && payload.argv.watch) {
-            if (payload.argv.isMultiremote) {
-                this.isMultiremote = true
-                global.browser = await attachToMultiremote(payload.argv.instances, payload.argv.caps)
-            } else {
-                global.browser = await initialiseInstance(payload.argv.config, payload.argv.caps, false)
-            }
-        }
-
+    async endSession() {
         /**
          * make sure instance(s) exist and have `sessionId`
          */
@@ -360,17 +335,8 @@ export default class Runner extends EventEmitter {
          * don't do anything if test framework returns after SIGINT
          * if endSession is called without payload we expect a session id
          */
-        if (!payload && !hasSessionId) {
+        if (!hasSessionId) {
             return
-        }
-
-        /**
-         * if payload was called but no session was created, wait until it was
-         * and try to end it
-         */
-        if (payload && !hasSessionId) {
-            await new Promise((resolve) => setTimeout(resolve, 250))
-            return this.endSession(payload)
         }
 
         /**
@@ -393,9 +359,5 @@ export default class Runner extends EventEmitter {
         }
 
         await runHook('afterSession', global.browser.config, capabilities, this.specs)
-
-        if (payload) {
-            return this._shutdown()
-        }
     }
 }

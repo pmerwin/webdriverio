@@ -1,28 +1,75 @@
 /**
  *
- * Drag an item to a destination element.
+ * Drag an item to a destination element or position.
+ *
+ * <example>
+    :example.test.js
+    it('should demonstrate the dragAndDrop command', () => {
+        const elem = $('#someElem')
+        const target = $('#someTarget')
+
+        // drag and drop to other element
+        elem.dragAndDrop(target)
+
+        // drag and drop relative from current position
+        elem.dragAndDrop({ x: 100, y: 200 })
+    })
+ * </example>
  *
  * @alias element.dragAndDrop
- * @param {Element} target    destination selector
- * @param {Number=}  duration  how long the drag should take place
- * @uses action/moveToObject, protocol/buttonDown, protocol/buttonUp, property/getLocation, protocol/touchDown, protocol/touchMove, protocol/touchUp
- * @type action
- *
+ * @param {Element|DragAndDropCoordinate} target  destination element or object with x and y properties
+ * @param {DragAndDropOptions=} options           dragAndDrop command options
+ * @param {Number=}             options.duration  how long the drag should take place
  */
 
 import { getElementRect, getScrollPosition } from '../../utils'
 
 const ACTION_BUTTON = 0
 
-export default async function dragAndDrop (target, duration = 100) {
-    if (!target || target.constructor.name !== 'Element') {
-        throw new Error('command dragAndDrop requires an WebdriverIO Element as first parameter')
+const sleep = (time = 0) => new Promise((resolve) => setTimeout(resolve, time))
+
+export default async function dragAndDrop(target, { duration = 10 } = {}) {
+    /**
+     * fail if
+     */
+    if (
+        /**
+         * no target was specified
+         */
+        !target ||
+        (
+            /**
+             * target is not from type element
+             */
+            target.constructor.name !== 'Element' &&
+            /**
+             * and is also not an object with x and y number parameters
+             */
+            (
+                typeof target.x !== 'number' ||
+                typeof target.y !== 'number'
+            )
+        )
+    ) {
+        throw new Error('command dragAndDrop requires an WebdriverIO Element or and object with "x" and "y" variables as first parameter')
     }
+
+    /**
+     * allow to specify an element or an x/y vector
+     */
+    const moveToElement = target.constructor.name === 'Element'
 
     if (!this.isW3C) {
         await this.moveTo()
         await this.buttonDown(ACTION_BUTTON)
-        await target.moveTo()
+
+        if (moveToElement) {
+            await target.moveTo()
+        } else {
+            await this.moveToElement(null, target.x, target.y)
+        }
+
+        await sleep(duration)
         return this.buttonUp(ACTION_BUTTON)
     }
 
@@ -31,11 +78,18 @@ export default async function dragAndDrop (target, duration = 100) {
      */
     const { scrollX, scrollY } = await getScrollPosition(this)
     const sourceRect = await getElementRect(this)
-    const targetRect = await getElementRect(target)
     const sourceX = parseInt(sourceRect.x - scrollX + (sourceRect.width / 2), 10)
     const sourceY = parseInt(sourceRect.y - scrollY + (sourceRect.height / 2), 10)
-    const targetX = parseInt(targetRect.x - scrollX + (targetRect.width / 2), 10) - sourceX
-    const targetY = parseInt(targetRect.y - scrollY + (targetRect.height / 2), 10) - sourceY
+
+    let targetX, targetY
+    if (moveToElement) {
+        const targetRect = await getElementRect(target)
+        targetX = parseInt(targetRect.x - scrollX + (targetRect.width / 2), 10) - sourceX
+        targetY = parseInt(targetRect.y - scrollY + (targetRect.height / 2), 10) - sourceY
+    } else {
+        targetX = target.x
+        targetY = target.y
+    }
 
     /**
      * W3C way of handle the drag and drop action

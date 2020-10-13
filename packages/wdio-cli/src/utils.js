@@ -1,47 +1,62 @@
-import fs from 'fs'
+import fs from 'fs-extra'
 import ejs from 'ejs'
 import path from 'path'
+import inquirer from 'inquirer'
 import logger from '@wdio/logger'
+import readDir from 'recursive-readdir'
+import { SevereServiceError } from 'webdriverio'
 import { execSync } from 'child_process'
 import { promisify } from 'util'
 
-import inquirer from 'inquirer'
-import { runConfig } from './commands/config'
-import { CONFIG_HELPER_SUCCESS_MESSAGE, EXCLUSIVE_SERVICES, ANDROID_CONFIG, IOS_CONFIG } from './constants'
+import { EXCLUSIVE_SERVICES, ANDROID_CONFIG, IOS_CONFIG, QUESTIONNAIRE } from './constants'
 
 const log = logger('@wdio/cli:utils')
+
+const TEMPLATE_ROOT_DIR = path.join(__dirname, 'templates', 'exampleFiles')
+const renderFile = promisify(ejs.renderFile)
 
 /**
  * run service launch sequences
  */
-export async function runServiceHook (launcher, hookName, ...args) {
-    try {
-        return await Promise.all(launcher.map((service) => {
+export async function runServiceHook(launcher, hookName, ...args) {
+    return Promise.all(launcher.map(async (service) => {
+        try {
             if (typeof service[hookName] === 'function') {
-                return service[hookName](...args)
+                await service[hookName](...args)
             }
-        }))
-    } catch (e) {
-        log.error(`A service failed in the '${hookName}' hook\n${e.stack}\n\nContinue...`)
-    }
+        } catch (e) {
+            const message = `A service failed in the '${hookName}' hook\n${e.stack}\n\n`
+
+            if (e instanceof SevereServiceError) {
+                return { status: 'rejected', reason: message }
+            }
+
+            log.error(`${message}Continue...`)
+        }
+    })).then(results => {
+        const rejectedHooks = results.filter(p => p && p.status === 'rejected')
+        if (rejectedHooks.length) {
+            return Promise.reject(`\n${rejectedHooks.map(p => p.reason).join()}\n\nStopping runner...`)
+        }
+    })
 }
 
 /**
- * Run onPrepareHook in Launcher
- * @param {Array|Function} onPrepareHook - can be array of functions or single function
+ * Run hook in service launcher
+ * @param {Array|Function} hook - can be array of functions or single function
  * @param {Object} config
  * @param {Object} capabilities
  */
-export async function runOnPrepareHook(onPrepareHook, config, capabilities) {
-    const catchFn = (e) => log.error(`Error in onPrepareHook: ${e.stack}`)
+export async function runLauncherHook(hook, ...args) {
+    const catchFn = (e) => log.error(`Error in hook: ${e.stack}`)
 
-    if (typeof onPrepareHook === 'function') {
-        onPrepareHook = [onPrepareHook]
+    if (typeof hook === 'function') {
+        hook = [hook]
     }
 
-    return Promise.all(onPrepareHook.map((hook) => {
+    return Promise.all(hook.map((hook) => {
         try {
-            return hook(config, capabilities)
+            return hook(...args)
         } catch (e) {
             return catchFn(e)
         }
@@ -182,36 +197,11 @@ export function convertPackageHashToObject(string, hash = '$--$') {
 }
 
 export async function renderConfigurationFile (answers) {
-    const renderFile = promisify(ejs.renderFile)
     const tplPath = path.join(__dirname, 'templates/wdio.conf.tpl.ejs')
 
     const renderedTpl = await renderFile(tplPath, { answers })
 
     fs.writeFileSync(path.join(process.cwd(), 'wdio.conf.js'), renderedTpl)
-    console.log(CONFIG_HELPER_SUCCESS_MESSAGE)
-}
-
-export async function missingConfigurationPrompt(command, message, useYarn = false) {
-    const { config } = await inquirer.prompt([
-        {
-            type: 'confirm',
-            name: 'config',
-            message: `Error: Could not execute "${command}" due to missing configuration. Would you like to create one?`,
-            default: false
-        }
-    ])
-
-    /**
-     * don't exit if running unit tests
-     */
-    if (!config && !process.env.JEST_WORKER_ID) {
-        /* istanbul ignore next */
-        console.log(message)
-        /* istanbul ignore next */
-        return process.exit(0)
-    }
-
-    return await runConfig(useYarn, false, true)
 }
 
 export const validateServiceAnswers = (answers) => {
@@ -256,4 +246,107 @@ export function getCapabilities(arg) {
         return { capabilities: { browserName: 'Safari', ...IOS_CONFIG, ...optionalCapabilites } }
     }
     return { capabilities: { browserName: arg.option } }
+}
+
+/**
+ * Check if file exists in current work directory
+ * @param {string} filename to check existance for
+ */
+export function hasFile (filename) {
+    return fs.existsSync(path.join(process.cwd(), filename))
+}
+
+/**
+ * generate test files based on CLI answers
+ */
+export async function generateTestFiles (answers) {
+    const testFiles = answers.framework === 'cucumber'
+        ? [path.join(TEMPLATE_ROOT_DIR, 'cucumber')]
+        : [path.join(TEMPLATE_ROOT_DIR, 'mochaJasmine')]
+
+    if (answers.usePageObjects) {
+        testFiles.push(path.join(TEMPLATE_ROOT_DIR, 'pageobjects'))
+    }
+
+    const files = (await Promise.all(testFiles.map((dirPath) => readDir(
+        dirPath,
+        [(file, stats) => !stats.isDirectory() && !(file.endsWith('.ejs') || file.endsWith('.feature'))]
+    )))).reduce((cur, acc) => [...acc, ...(cur)], [])
+
+    for (const file of files) {
+        const renderedTpl = await renderFile(file, answers)
+        let destPath = (
+            file.endsWith('page.js.ejs')
+                ? `${answers.destPageObjectRootPath}/${path.basename(file)}`
+                : file.includes('step_definition')
+                    ? `${answers.stepDefinitions}`
+                    : `${answers.destSpecRootPath}/${path.basename(file)}`
+        ).replace(/\.ejs$/, '').replace(/\.js$/, answers.isUsingTypeScript ? '.ts' : '.js')
+
+        fs.ensureDirSync(path.dirname(destPath))
+        fs.writeFileSync(destPath, renderedTpl)
+    }
+}
+
+export async function getAnswers(yes) {
+    return yes
+        ? QUESTIONNAIRE.reduce((answers, question) => Object.assign(
+            answers,
+            question.when && !question.when(answers)
+                /**
+                 * set nothing if question doesn't apply
+                 */
+                ? {}
+                : { [question.name]: typeof question.default !== 'undefined'
+                    /**
+                     * set default value if existing
+                     */
+                    ? typeof question.default === 'function'
+                        ? question.default(answers)
+                        : question.default
+                    : question.choices && question.choices.length
+                    /**
+                     * pick first choice, select value if it exists
+                     */
+                        ? question.choices[0].value
+                            ? question.choices[0].value
+                            : question.choices[0]
+                        : {}
+                }
+        ), {})
+        : await inquirer.prompt(QUESTIONNAIRE)
+}
+
+export function getPathForFileGeneration(answers){
+
+    const destSpecRootPath = path.join(
+        process.cwd(),
+        path.dirname(answers.specs || '').replace(/\*\*$/, ''))
+
+    const destStepRootPath = path.join(process.cwd(), path.dirname(answers.stepDefinitions || ''))
+
+    const destPageObjectRootPath = answers.usePageObjects
+        ?  path.join(
+            process.cwd(),
+            path.dirname(answers.pages || '').replace(/\*\*$/, ''))
+        : ''
+    let relativePath = (answers.generateTestFiles && answers.usePageObjects)
+        ? !(answers.framework.short === 'cucumber')
+            ? path.relative(destSpecRootPath, destPageObjectRootPath)
+            : path.relative(destStepRootPath, destPageObjectRootPath)
+        : ''
+
+    /**
+    * On Windows, path.relative can return backslashes that could be interpreted as espace sequences in strings
+    */
+    if (process.platform === 'win32') {
+        relativePath = relativePath.replace(/\\/g, '/')
+    }
+
+    return {
+        destSpecRootPath : destSpecRootPath,
+        destStepRootPath : destStepRootPath,
+        destPageObjectRootPath : destPageObjectRootPath,
+        relativePath : relativePath
+    }
 }

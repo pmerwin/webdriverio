@@ -4,7 +4,7 @@ title: High level overview
 ---
 Flow chart provides a high level overview of how the WebdriverIO ecosystem interacts with the core packages.
 <div id="flowChartGraphDivContainer"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/8.4.3/mermaid.min.js"></script>
+<script src="https://unpkg.com/mermaid@8.5.1/dist/mermaid.min.js"></script>
 <script src="/js/flowchart.js"></script>
 <script>
     var graphData = `
@@ -13,7 +13,7 @@ Flow chart provides a high level overview of how the WebdriverIO ecosystem inter
         LAUNCHER["@wdio/cli launcher.js"]-->
         LOCALRUNNER["@wdio/local-runner"]-->
         RUNNER["@wdio/runner"]
-        LISTOFSERVICES["Any package that ends with -service<br>@wdio/appium-service<br>@wdio/applitools-service<br>@wdio/browserstack-service<br>@wdio/crossbrowsertesting-service<br>@wdio/devtools-service<br>@wdio/firefox-profile-service<br>@wdio/sauce-service<br>@wdio/selenium-standalone-service<br>@wdio/static-server-service<br>@wdio/testingbot-service<br>wdio-chromedriver-service<br>wdio-intercept-service<br>wdio-zafira-listener-service<br>wdio-reportportal-service<br>wdio-docker-service"]-->
+        LISTOFSERVICES["Any package that ends with -service<br>@wdio/appium-service<br>@wdio/applitools-service<br>@wdio/browserstack-service<br>@wdio/crossbrowsertesting-service<br>wdio-lambdatest-service<br>@wdio/devtools-service<br>@wdio/firefox-profile-service<br>@wdio/sauce-service<br>@wdio/selenium-standalone-service<br>@wdio/static-server-service<br>@wdio/testingbot-service<br>wdio-chromedriver-service<br>wdio-intercept-service<br>wdio-zafira-listener-service<br>wdio-reportportal-service<br>wdio-docker-service"]-->
         LAUNCHER
         LISTOFSERVICES-->LOCALRUNNER
         LISTOFSERVICES-->RUNNER

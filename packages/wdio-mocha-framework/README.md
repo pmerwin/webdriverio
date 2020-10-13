@@ -10,7 +10,7 @@ The easiest way is to keep `@wdio/mocha-framework` as a devDependency in your `p
 ```json
 {
   "devDependencies": {
-    "@wdio/mocha-framework": "^5.0.0"
+    "@wdio/mocha-framework": "^6.3.6"
   }
 }
 ```
@@ -91,7 +91,7 @@ context.describe = function (name, callback) {
 
 ```js
 describe(() => {
-	it('Login form', () => {
+	it('Login form', function () => {
 		this.skip();
 	});
 });
@@ -116,31 +116,6 @@ CoffeeScript and similar transpilers may be used by mapping the file extensions 
     compilers: ['coffee:foo', './bar.js']
   }
 }
-```
-
-## Development
-
-All commands can be found in the package.json. The most important are:
-
-Watch changes:
-
-```sh
-$ npm run watch
-```
-
-Run tests:
-
-```sh
-$ npm test
-
-# run test with coverage report:
-$ npm run test:cover
-```
-
-Build package:
-
-```sh
-$ npm build
 ```
 
 For more information on WebdriverIO see the [homepage](https://webdriver.io).

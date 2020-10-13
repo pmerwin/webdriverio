@@ -1,13 +1,22 @@
 import os from 'os'
-import uuidv4 from 'uuid/v4'
+import uaParserJs from 'ua-parser-js'
+import { v4 as uuidv4 } from 'uuid'
+
 import logger from '@wdio/logger'
 import { webdriverMonad, devtoolsEnvironmentDetector } from '@wdio/utils'
 import { validateConfig } from '@wdio/config'
 
 import DevToolsDriver from './devtoolsdriver'
 import launch from './launcher'
-import { DEFAULTS } from './constants'
-import { getPrototype } from './utils'
+import { DEFAULTS, SUPPORTED_BROWSER, VENDOR_PREFIX } from './constants'
+import { getPrototype, patchDebug } from './utils'
+
+const log = logger('devtools:puppeteer')
+
+/**
+ * patch debug package to log Puppeteer CDP messages
+ */
+patchDebug(log)
 
 export const sessionMap = new Map()
 
@@ -23,36 +32,40 @@ export default class DevTools {
         const pages = await browser.pages()
         const driver = new DevToolsDriver(browser, pages)
         const sessionId = uuidv4()
-        const [browserName, browserVersion] = (await browser.version()).split('/')
+        const userAgent = uaParserJs(await browser.userAgent())
 
-        params.capabilities = {
-            browserName,
-            browserVersion,
-            platformName: os.platform(),
-            platformVersion: os.release(),
-            'goog:chromeOptions': Object.assign(
-                { debuggerAddress: browser._connection.url().split('/')[2] },
-                params.capabilities['goog:chromeOptions']
-            )
-        }
+        /**
+         * find vendor key in capabilities
+         */
+        const availableVendorPrefixes = Object.values(VENDOR_PREFIX)
+        const vendorCapPrefix = Object.keys(params.capabilities).find(
+            (capKey) => availableVendorPrefixes.includes(capKey))
 
         /**
          * save original set of capabilities to allow to request the same session again
          * (e.g. for reloadSession command in WebdriverIO)
          */
-        params.requestedCapabilities = {
-            w3cCaps: params.capabilities,
-            jsonwpCaps: params.capabilities
+        params.requestedCapabilities = { ...params.capabilities }
+
+        params.capabilities = {
+            browserName: userAgent.browser.name,
+            browserVersion: userAgent.browser.version,
+            platformName: os.platform(),
+            platformVersion: os.release(),
+            [vendorCapPrefix]: Object.assign(
+                { debuggerAddress: browser._connection.url().split('/')[2] },
+                params.capabilities[vendorCapPrefix]
+            )
         }
 
         sessionMap.set(sessionId, { browser, session: driver })
-        const environmentPrototype = { getPuppeteer: { value: /* istanbul ignore next */ () => browser } }
-        Object.entries(devtoolsEnvironmentDetector({ browserName })).forEach(([name, value]) => {
+        const environmentPrototype = { puppeteer: { value: browser } }
+        Object.entries(devtoolsEnvironmentDetector({ browserName: userAgent.browser.name.toLowerCase() })).forEach(([name, value]) => {
             environmentPrototype[name] = { value }
         })
         const commandWrapper = (_, __, commandInfo) => driver.register(commandInfo)
         const protocolCommands = getPrototype(commandWrapper)
-        const prototype = { ...protocolCommands, ...environmentPrototype, ...userPrototype }
+        const prototype = { ...protocolCommands, ...userPrototype, ...environmentPrototype }
 
         const monad = webdriverMonad(params, modifier, prototype)
         return monad(sessionId, customCommandWrapper)
@@ -60,8 +73,7 @@ export default class DevTools {
 
     static async reloadSession (instance) {
         const { session } = sessionMap.get(instance.sessionId)
-        const { w3cCaps } = instance.options.requestedCapabilities
-        const browser = await launch(w3cCaps)
+        const browser = await launch(instance.requestedCapabilities)
         const pages = await browser.pages()
 
         session.elementStore.clear()
@@ -86,3 +98,5 @@ export default class DevTools {
         throw new Error('not yet implemented')
     }
 }
+
+export { SUPPORTED_BROWSER }

@@ -1,19 +1,28 @@
 import logger from '@wdio/logger'
-import request from 'request'
+import got from 'got'
 
 import { BROWSER_DESCRIPTION } from './constants'
 
 const log = logger('@wdio/browserstack-service')
 
 export default class BrowserstackService {
-    constructor (config) {
+    constructor (options = {}, caps, config) {
         this.config = config
-        this.failures = 0
         this.sessionBaseUrl = 'https://api.browserstack.com/automate/sessions'
+        this.failReasons = []
+
+        // Cucumber specific
+        this.scenariosThatRan = []
+        this.preferScenarioName = Boolean(options.preferScenarioName)
+        this.strict = Boolean(config.cucumberOpts && config.cucumberOpts.strict)
+        // See https://github.com/cucumber/cucumber-js/blob/master/src/runtime/index.ts#L136
+        this.failureStatuses = ['failed', 'ambiguous', 'undefined', 'unknown']
+        this.strict && this.failureStatuses.push('pending')
+        this.caps = caps
     }
 
     /**
-     * if no user and key is specified even though a sauce service was
+     * if no user and key is specified even though a browserstack service was
      * provided set user and key with values so that the session request
      * will fail
      */
@@ -31,104 +40,125 @@ export default class BrowserstackService {
 
     before() {
         this.sessionId = global.browser.sessionId
-        this.auth = {
-            user: this.config.user,
-            pass: this.config.key
-        }
-        if (this.config.capabilities.app) {
+
+        // Ensure capabilities are not null in case of multiremote
+        const capabilities = global.browser.capabilities || {}
+        if (capabilities.app || this.caps.app) {
             this.sessionBaseUrl = 'https://api-cloud.browserstack.com/app-automate/sessions'
         }
+
+        this.scenariosThatRan = []
+
         return this._printSessionURL()
     }
 
-    afterSuite(suite) {
-        if (Object.prototype.hasOwnProperty.call(suite, 'error')) {
-            this.failures++
+    beforeSuite (suite) {
+        this.fullTitle = suite.title
+        this._update(this.sessionId, { name: this.fullTitle })
+    }
+
+    beforeFeature(uri, feature) {
+        this.fullTitle = feature.document.feature.name
+        this._update(this.sessionId, { name: this.fullTitle })
+    }
+
+    afterTest(test, context, results) {
+        const { error, passed } = results
+
+        this.fullTitle = (
+            /**
+             * Jasmine
+             */
+            test.fullName ||
+            /**
+             * Mocha
+             */
+            `${test.parent} - ${test.title}`
+        )
+
+        if (!passed) {
+            this.failReasons.push((error && error.message) || 'Unknown Error')
         }
     }
 
-    afterTest(test) {
-        this.fullTitle = test.parent + ' - ' + test.title
-
-        if (!test.passed) {
-            this.failures++
-            this.failReason = (test.error && test.error.message ? test.error.message : 'Unknown Error')
+    after(result) {
+        // For Cucumber: Checks scenarios that ran (i.e. not skipped) on the session
+        // Only 1 Scenario ran and option enabled => Redefine session name to Scenario's name
+        if (this.preferScenarioName && this.scenariosThatRan.length === 1){
+            this.fullTitle = this.scenariosThatRan.pop()
         }
-    }
 
-    after() {
-        return this._update(this.sessionId, this._getBody())
+        const hasReasons = Boolean(this.failReasons.filter(Boolean).length)
+
+        return this._update(this.sessionId, {
+            status: result === 0 ? 'passed' : 'failed',
+            name: this.fullTitle,
+            reason: hasReasons ? this.failReasons.join('\n') : undefined
+        })
     }
 
     /**
      * For CucumberJS
      */
 
-    afterScenario(uri, feature, pickle, result) {
-        if (result.status === 'failed') {
-            ++this.failures
+    afterScenario(uri, feature, pickle, results) {
+        let { exception, status } = results
+
+        if (status !== 'skipped') {
+            this.scenariosThatRan.push(pickle.name)
+        }
+
+        if (this.failureStatuses.includes(status)) {
+            exception = exception || (status === 'pending'
+                ? `Some steps/hooks are pending for scenario "${pickle.name}"`
+                : 'Unknown Error')
+
+            this.failReasons.push(exception)
         }
     }
 
     async onReload(oldSessionId, newSessionId) {
+        const hasReasons = Boolean(this.failReasons.filter(Boolean).length)
+
         this.sessionId = newSessionId
-        await this._update(oldSessionId, this._getBody())
-        this.failures = 0
+        await this._update(oldSessionId, {
+            name: this.fullTitle,
+            status: hasReasons ? 'failed' : 'passed',
+            reason: hasReasons ? this.failReasons.join('\n') : undefined
+        })
+        this.scenariosThatRan = []
         delete this.fullTitle
-        delete this.failReason
-        this._printSessionURL()
+        this.failReasons = []
+        await this._printSessionURL()
     }
 
     _update(sessionId, requestBody) {
-        return new Promise((resolve, reject) => {
-            request.put(`${this.sessionBaseUrl}/${sessionId}.json`, {
-                json: true,
-                auth: this.auth,
-                body: requestBody
-            }, (error, response, body) => {
-                /* istanbul ignore if */
-                if (error) {
-                    return reject(error)
-                }
-                return resolve(body)
-            })
+        return got.put(`${this.sessionBaseUrl}/${sessionId}.json`, {
+            json: requestBody,
+            username: this.config.user,
+            password: this.config.key
         })
     }
 
-    _getBody() {
-        return {
-            status: this.failures === 0 ? 'completed' : 'error',
-            name: this.fullTitle,
-            reason: this.failReason
-        }
-    }
+    async _printSessionURL() {
+        // Ensure capabilities are not null in case of multiremote
+        const capabilities = global.browser.capabilities || {}
 
-    _printSessionURL() {
-        const capabilities = global.browser.capabilities
-        return new Promise((resolve, reject) => request.get(
-            `${this.sessionBaseUrl}/${this.sessionId}.json`,
-            {
-                json: true,
-                auth: this.auth
-            },
-            (error, response, body) => {
-                if (error) {
-                    return reject(error)
-                }
+        const response = await got(`${this.sessionBaseUrl}/${this.sessionId}.json`, {
+            username: this.config.user,
+            password: this.config.key,
+            responseType: 'json'
+        })
 
-                if (response.statusCode !== 200) {
-                    return reject(new Error(`Bad response code: Expected (200), Received (${response.statusCode})!`))
-                }
+        /**
+         * These keys describe the browser the test was run on
+         */
+        const browserString = BROWSER_DESCRIPTION
+            .map(k => capabilities[k])
+            .filter(v => !!v)
+            .join(' ')
 
-                // These keys describe the browser the test was run on
-                const browserString = BROWSER_DESCRIPTION
-                    .map(k => capabilities[k])
-                    .filter(v => !!v)
-                    .join(' ')
-
-                log.info(`${browserString} session: ${body.automation_session.browser_url}`)
-                return resolve(body)
-            }
-        ))
+        log.info(`${browserString} session: ${response.body.automation_session.browser_url}`)
+        return response.body
     }
 }

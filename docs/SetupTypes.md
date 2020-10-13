@@ -46,7 +46,7 @@ const { remote } = require('webdriverio')
 const sync = require('@wdio/sync').default
 
 remote({
-    runner: true,
+    runner: 'local',
     outputDir: __dirname,
     capabilities: {
         browserName: 'chrome'
@@ -62,7 +62,7 @@ If you now run the file, it will return the title:
 
 ```sh
 $ node standalone.js
-WebdriverIO · Next-gen WebDriver test framework for Node.js
+WebdriverIO · Next-gen browser and mobile automation test framework for Node.js
 ```
 
 ## The WDIO Testrunner

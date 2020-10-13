@@ -1,3 +1,8 @@
+import fs from 'fs'
+import path from 'path'
+
+const SCREENSHOT_REPLACEMENT = '"<Screenshot[base64]>"'
+
 /**
  * overwrite native element commands with user defined
  * @param {object} propertiesObject propertiesObject
@@ -50,6 +55,17 @@ export function commandCallStructure (commandName, args) {
     const callArgs = args.map((arg) => {
         if (typeof arg === 'string' && (arg.startsWith('!function(') || arg.startsWith('return (function'))) {
             arg = '<fn>'
+        } else if (
+            typeof arg === 'string' &&
+            /**
+             * the isBase64 method returns for xPath values like
+             * "/html/body/a" a true value which is why we should
+             * include a command check in here.
+             */
+            !commandName.startsWith('findElement') &&
+            isBase64(arg)
+        ) {
+            arg = SCREENSHOT_REPLACEMENT
         } else if (typeof arg === 'string') {
             arg = `"${arg}"`
         } else if (typeof arg === 'function') {
@@ -66,6 +82,19 @@ export function commandCallStructure (commandName, args) {
     }).join(', ')
 
     return `${commandName}(${callArgs})`
+}
+
+/**
+ * transforms WebDriver result for log stream to avoid unnecessary long
+ * result strings e.g. if it contains a screenshot
+ * @param {Object} result WebDriver response body
+ */
+export function transformCommandLogResult (result) {
+    if (typeof result.file === 'string' && isBase64(result.file)) {
+        return SCREENSHOT_REPLACEMENT
+    }
+
+    return result
 }
 
 /**
@@ -131,7 +160,7 @@ export function safeRequire (name) {
          * also allows to link the package to a random place and have plugins
          * imported correctly (for dev purposes).
          */
-        const localNodeModules = `${process.cwd()}/node_modules`
+        const localNodeModules = path.join(process.cwd(), '/node_modules')
         /* istanbul ignore if */
         if (!require.main.paths.includes(localNodeModules)) {
             require.main.paths.push(localNodeModules)
@@ -174,3 +203,48 @@ export function isFunctionAsync (fn) {
 export function filterSpecArgs (args) {
     return args.filter((arg) => typeof arg !== 'function')
 }
+
+/**
+ * checks if provided string is Base64
+ * @param  {String} str  string in base64 to check
+ * @return {Boolean} true if the provided string is Base64
+ */
+export function isBase64(str) {
+    var notBase64 = new RegExp('[^A-Z0-9+\\/=]',  'i')
+    const isString = (typeof str === 'string' || str instanceof String)
+    if (!isString) {
+        throw new Error('Expected string but received invalid type.')
+    }
+    const len = str.length
+    if (!len || len % 4 !== 0 || notBase64.test(str)) {
+        return false
+    }
+    const firstPaddingChar = str.indexOf('=')
+    return firstPaddingChar === -1 ||
+      firstPaddingChar === len - 1 ||
+      (firstPaddingChar === len - 2 && str[len - 1] === '=')
+}
+
+/**
+ * Helper utility to check file access
+ * @param {String} file file to check access for
+ * @return              true if file can be accessed
+ */
+export const canAccess = (file) => {
+    if (!file) {
+        return false
+    }
+
+    try {
+        fs.accessSync(file)
+        return true
+    } catch (e) {
+        return false
+    }
+}
+
+/**
+ * sleep
+ * @param {number=0} ms number in ms to sleep
+ */
+export const sleep = (ms = 0) => new Promise((r) => setTimeout(r, ms))

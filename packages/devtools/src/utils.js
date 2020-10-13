@@ -1,9 +1,12 @@
+import fs from 'fs'
+import path from 'path'
+import { execFileSync } from 'child_process'
 import logger from '@wdio/logger'
-import { commandCallStructure, isValidParameter, getArgumentType } from '@wdio/utils'
+import { commandCallStructure, isValidParameter, getArgumentType, canAccess } from '@wdio/utils'
 import { WebDriverProtocol } from '@wdio/protocols'
 
 import cleanUp from './scripts/cleanUpSerializationSelector'
-import { ELEMENT_KEY, SERIALIZE_PROPERTY, SERIALIZE_FLAG, ERROR_MESSAGES } from './constants'
+import { ELEMENT_KEY, SERIALIZE_PROPERTY, SERIALIZE_FLAG, ERROR_MESSAGES, PPTR_LOG_PREFIX } from './constants'
 
 const log = logger('devtools')
 
@@ -110,7 +113,15 @@ export async function findElement (context, using, value) {
     }
 
     const elementId = this.elementStore.set(element)
-    return { [ELEMENT_KEY]: elementId }
+
+    /**
+     * return value has to be defined this way because of
+     * https://github.com/microsoft/TypeScript/issues/37832
+     */
+    const returnValue = {}
+    returnValue[ELEMENT_KEY] = elementId
+
+    return returnValue
 }
 
 export async function findElements (context, using, value) {
@@ -159,10 +170,10 @@ export function sanitizeError (err) {
 /**
  * transform elements in argument list to Puppeteer element handles
  */
-export function transformExecuteArgs (args = []) {
-    return args.map((arg) => {
+export async function transformExecuteArgs (args = []) {
+    return Promise.all(args.map(async (arg) => {
         if (arg[ELEMENT_KEY]) {
-            const elementHandle = this.elementStore.get(arg[ELEMENT_KEY])
+            const elementHandle = await this.elementStore.get(arg[ELEMENT_KEY])
 
             if (!elementHandle) {
                 throw getStaleElementError(arg[ELEMENT_KEY])
@@ -172,7 +183,7 @@ export function transformExecuteArgs (args = []) {
         }
 
         return arg
-    })
+    }))
 }
 
 /**
@@ -230,4 +241,89 @@ export async function getPages (browser, retryInterval = 100) {
     }
 
     return pages
+}
+
+export function sort(installations, priorities) {
+    const defaultPriority = 10
+    return installations
+        // assign priorities
+        .map((inst) => {
+            for (const pair of priorities) {
+                if (pair.regex.test(inst)) {
+                    return { path: inst, weight: pair.weight }
+                }
+            }
+
+            return { path: inst, weight: defaultPriority }
+        })
+        // sort based on priorities
+        .sort((a, b) => (b.weight - a.weight))
+        // remove priority flag
+        .map(pair => pair.path)
+}
+
+/**
+ * helper utitlity to clone a list
+ * @param  {Any[]} arr  list of things
+ * @return {Any[]}      new list of same things
+ */
+export function uniq(arr) {
+    return Array.from(new Set(arr))
+}
+
+/**
+ * Look for edge executables by using the which command
+ */
+export function findByWhich (executables, priorities) {
+    const installations = []
+    executables.forEach((executable) => {
+        try {
+            const browserPath = execFileSync(
+                'which',
+                [executable],
+                { stdio: 'pipe' }
+            ).toString().split(/\r?\n/)[0]
+
+            if (canAccess(browserPath)) {
+                installations.push(browserPath)
+            }
+        } catch (e) {
+            // Not installed.
+        }
+    })
+
+    return sort(uniq(installations.filter(Boolean)), priorities)
+}
+
+/**
+ * monkey patch debug package to log CDP messages from Puppeteer
+ */
+export function patchDebug (scoppedLogger) {
+    /**
+     * log puppeteer messages
+     */
+    let puppeteerDebugPkg = path.resolve(
+        path.dirname(require.resolve('puppeteer-core')),
+        'node_modules',
+        'debug')
+
+    /**
+     * check if Puppeteer has its own version of debug, if not use the
+     * one that is installed for all packages
+     */
+    if (!fs.existsSync(puppeteerDebugPkg)) {
+        /**
+         * let's not get caught by our dep checker, therefor
+         * define package name in variable first
+         */
+        const pkgName = 'debug'
+        puppeteerDebugPkg = require.resolve(pkgName)
+    }
+
+    require(puppeteerDebugPkg).log = (msg) => {
+        if (msg.includes('puppeteer:protocol')) {
+            msg = msg.slice(msg.indexOf(PPTR_LOG_PREFIX) + PPTR_LOG_PREFIX.length).trim()
+        }
+        scoppedLogger.debug(msg)
+    }
 }

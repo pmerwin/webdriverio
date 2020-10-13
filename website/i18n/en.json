@@ -3,7 +3,7 @@
   "localized-strings": {
     "next": "Next",
     "previous": "Previous",
-    "tagline": "Next-gen WebDriver test framework for Node.js",
+    "tagline": "Next-gen browser and mobile automation test framework for Node.js",
     "docs": {
       "allure-reporter": {
         "title": "Allure Reporter"
@@ -35,9 +35,6 @@
       "junit-reporter": {
         "title": "Junit Reporter"
       },
-      "rpii-wdio-html-reporter": {
-        "title": "HTML Reporter"
-      },
       "sauce-service": {
         "title": "Sauce Service"
       },
@@ -59,41 +56,8 @@
       "testingbot-service": {
         "title": "Testingbot Service"
       },
-      "wdio-chromedriver-service": {
-        "title": "ChromeDriver Service"
-      },
-      "wdio-cucumberjs-json-reporter": {
-        "title": "CucumberJS JSON Reporter"
-      },
-      "wdio-docker-service": {
-        "title": "Docker Service"
-      },
-      "wdio-intercept-service": {
-        "title": "Intercept Service"
-      },
-      "wdio-json-reporter": {
-        "title": "JSON Reporter"
-      },
-      "wdio-mochawesome-reporter": {
-        "title": "Mochawesome Reporter"
-      },
-      "wdio-reportportal-reporter": {
-        "title": "Report Portal Reporter"
-      },
-      "wdio-reportportal-service": {
-        "title": "Report Portal Service"
-      },
-      "wdio-timeline-reporter": {
-        "title": "Timeline Reporter"
-      },
-      "wdio-video-reporter": {
-        "title": "Video Reporter"
-      },
-      "wdio-wiremock-service": {
-        "title": "WireMock Service"
-      },
-      "wdio-zafira-listener-service": {
-        "title": "Zafira Listener Service"
+      "webdriver-mock-service": {
+        "title": "Webdriver Mock Service"
       },
       "api": {
         "title": "API Docs"
@@ -101,11 +65,35 @@
       "api/appium": {
         "title": "Appium"
       },
+      "api/chromium": {
+        "title": "Chromium"
+      },
+      "api/expect-webdriverio": {
+        "title": "Expect"
+      },
+      "api/jsonwp": {
+        "title": "JSON Wire Protocol"
+      },
+      "api/mjsonwp": {
+        "title": "Mobile JSON Wire Protocol"
+      },
+      "api/saucelabs": {
+        "title": "Sauce Labs"
+      },
+      "api/selenium": {
+        "title": "Selenium Standalone"
+      },
+      "api/webdriver": {
+        "title": "Webdriver Protocol"
+      },
       "api/browser/$": {
         "title": "$"
       },
       "api/browser/$$": {
         "title": "$$"
+      },
+      "api/browser/addCommand": {
+        "title": "addCommand"
       },
       "api/browser/call": {
         "title": "call"
@@ -131,14 +119,23 @@
       "api/browser/getCookies": {
         "title": "getCookies"
       },
+      "api/browser/getPuppeteer": {
+        "title": "getPuppeteer"
+      },
       "api/browser/getWindowSize": {
         "title": "getWindowSize"
       },
       "api/browser/keys": {
         "title": "keys"
       },
+      "api/browser/mock": {
+        "title": "mock"
+      },
       "api/browser/newWindow": {
         "title": "newWindow"
+      },
+      "api/browser/overwriteCommand": {
+        "title": "overwriteCommand"
       },
       "api/browser/pause": {
         "title": "pause"
@@ -170,6 +167,9 @@
       "api/browser/switchWindow": {
         "title": "switchWindow"
       },
+      "api/browser/throttle": {
+        "title": "throttle"
+      },
       "api/browser/touchAction": {
         "title": "touchAction"
       },
@@ -181,9 +181,6 @@
       },
       "api/browser/waitUntil": {
         "title": "waitUntil"
-      },
-      "api/chromium": {
-        "title": "Chromium"
       },
       "api/element/$": {
         "title": "$"
@@ -251,6 +248,9 @@
       "api/element/isEnabled": {
         "title": "isEnabled"
       },
+      "api/element/isEqual": {
+        "title": "isEqual"
+      },
       "api/element/isExisting": {
         "title": "isExisting"
       },
@@ -311,20 +311,26 @@
       "api/element/waitUntil": {
         "title": "waitUntil"
       },
-      "api/jsonwp": {
-        "title": "JSON Wire Protocol"
+      "api/mock/abort": {
+        "title": "abort"
       },
-      "api/mjsonwp": {
-        "title": "Mobile JSON Wire Protocol"
+      "api/mock/abortOnce": {
+        "title": "abortOnce"
       },
-      "api/saucelabs": {
-        "title": "Sauce Labs"
+      "api/mock/clear": {
+        "title": "clear"
       },
-      "api/selenium": {
-        "title": "Selenium Standalone"
+      "api/mock/respond": {
+        "title": "respond"
       },
-      "api/webdriver": {
-        "title": "Webdriver Protocol"
+      "api/mock/respondOnce": {
+        "title": "respondOnce"
+      },
+      "api/mock/restore": {
+        "title": "restore"
+      },
+      "assertion": {
+        "title": "Assertion"
       },
       "autocompletion": {
         "title": "Autocompletion"
@@ -334,6 +340,9 @@
       },
       "babel": {
         "title": "Babel Setup"
+      },
+      "bamboo": {
+        "title": "Bamboo Integration"
       },
       "boilerplate": {
         "title": "Boilerplate Projects"
@@ -350,6 +359,9 @@
       "configurationfile": {
         "title": "Testrunner Configuration"
       },
+      "contribute": {
+        "title": "Contribute"
+      },
       "customcommands": {
         "title": "Custom Commands"
       },
@@ -362,8 +374,71 @@
       "debugging": {
         "title": "Debugging"
       },
+      "docs/rpii-wdio-html-reporter": {
+        "title": "HTML Reporter"
+      },
+      "docs/wdio-chromedriver-service": {
+        "title": "ChromeDriver Service"
+      },
+      "docs/wdio-cucumberjs-json-reporter": {
+        "title": "CucumberJS JSON Reporter"
+      },
+      "docs/wdio-docker-service": {
+        "title": "Docker Service"
+      },
+      "docs/wdio-image-comparison-service": {
+        "title": "Visual Regression Testing Service"
+      },
+      "docs/wdio-intercept-service": {
+        "title": "Intercept Service"
+      },
+      "docs/wdio-json-reporter": {
+        "title": "JSON Reporter"
+      },
+      "docs/wdio-lambdatest-service": {
+        "title": "LambdaTest Service"
+      },
+      "docs/wdio-markdown-reporter": {
+        "title": "Markdown Reporter"
+      },
+      "docs/wdio-mochawesome-reporter": {
+        "title": "Mochawesome Reporter"
+      },
+      "docs/wdio-ng-apimock-service": {
+        "title": "Ng-apimock Service"
+      },
+      "docs/wdio-novus-visual-regression-service": {
+        "title": "Novus Visual Regression Service"
+      },
+      "docs/wdio-reportportal-reporter": {
+        "title": "Report Portal Reporter"
+      },
+      "docs/wdio-reportportal-service": {
+        "title": "Report Portal Service"
+      },
+      "docs/wdio-rerun-service": {
+        "title": "Re-run Service"
+      },
+      "docs/wdio-slack-service": {
+        "title": "Slack Service"
+      },
+      "docs/wdio-timeline-reporter": {
+        "title": "Timeline Reporter"
+      },
+      "docs/wdio-video-reporter": {
+        "title": "Video Reporter"
+      },
+      "docs/wdio-wiremock-service": {
+        "title": "WireMock Service"
+      },
+      "docs/wdio-zafira-listener-service": {
+        "title": "Zafira Listener Service"
+      },
       "driverbinaries": {
         "title": "Driver Binaries"
+      },
+      "enterprise": {
+        "title": "WebdriverIO for Enterprise"
       },
       "flowchartsoverview": {
         "title": "Flowcharts"
@@ -386,8 +461,14 @@
       "gettingstarted": {
         "title": "Getting Started"
       },
+      "githubactions": {
+        "title": "Github Actions"
+      },
       "jenkins": {
         "title": "Jenkins Integration"
+      },
+      "mocksandspies": {
+        "title": "Mocks and Spies (Beta)"
       },
       "multiremote": {
         "title": "Multiremote"
@@ -428,15 +509,20 @@
       "typescript": {
         "title": "TypeScript Setup"
       },
+      "versions": {
+        "title": "WebdriverIO Versions"
+      },
       "watcher": {
         "title": "Watch Test Files"
       }
     },
     "links": {
-      "Guide": "Guide",
+      "Docs": "Docs",
       "API": "API",
       "Help": "Help",
+      "Versions": "Versions",
       "Blog": "Blog",
+      "Contribute": "Contribute",
       "GitHub": "GitHub"
     },
     "categories": {
@@ -450,19 +536,20 @@
       "Protocols": "Protocols",
       "browser": "browser",
       "element": "element",
+      "mock": "mock",
       "Flowcharts": "Flowcharts"
     }
   },
   "pages-strings": {
     "Watch Talks about WebdriverIO|no description given": "Watch Talks about WebdriverIO",
-    "The community around WebdriverIO is actively speaking on various user groups or conferences about specific topics around automated testing with WebdriverIO. Check out this talk from the latest \"This.JavaScript: State of Frontend Testing\" event about [The State of WebdriverIO v5](https://www.youtube.com/watch?v=fex2NlN-soQ&feature=youtu.be&t=3204) by [@klamping](https://twitter.com/klamping). There is also a whole [YouTube Channel](https://www.youtube.com/user/medigerati/videos?flow=grid&sort=p&view=0) about different topics around WebdriverIO created by [him as well](https://twitter.com/klamping).|no description given": "The community around WebdriverIO is actively speaking on various user groups or conferences about specific topics around automated testing with WebdriverIO. Check out this talk from the latest \"This.JavaScript: State of Frontend Testing\" event about [The State of WebdriverIO v5](https://www.youtube.com/watch?v=fex2NlN-soQ&feature=youtu.be&t=3204) by [@klamping](https://twitter.com/klamping). There is also a whole [YouTube Channel](https://www.youtube.com/user/medigerati/videos?flow=grid&sort=p&view=0) about different topics around WebdriverIO created by [him as well](https://twitter.com/klamping).",
+    "The community around WebdriverIO is actively speaking on various user groups or conferences about specific topics around automated testing with WebdriverIO. Check out this talk on [The Nuts and Bolts of WebdriverIO](https://www.youtube.com/watch?v=jOmvPpzLMf8&feature=youtu.be&t=3204) by [@bromann](https://twitter.com/bromann) at [Selenium Camp 2020](https://seleniumcamp.com/). There is also a whole [YouTube Channel](https://www.youtube.com/user/medigerati/videos?flow=grid&sort=p&view=0) about different topics around WebdriverIO created by on of our community members [Klamping](https://twitter.com/klamping).|no description given": "The community around WebdriverIO is actively speaking on various user groups or conferences about specific topics around automated testing with WebdriverIO. Check out this talk on [The Nuts and Bolts of WebdriverIO](https://www.youtube.com/watch?v=jOmvPpzLMf8&feature=youtu.be&t=3204) by [@bromann](https://twitter.com/bromann) at [Selenium Camp 2020](https://seleniumcamp.com/). There is also a whole [YouTube Channel](https://www.youtube.com/user/medigerati/videos?flow=grid&sort=p&view=0) about different topics around WebdriverIO created by on of our community members [Klamping](https://twitter.com/klamping).",
     "Watch more videos|no description given": "Watch more videos",
     "Applitools Support|no description given": "Applitools Support",
     "Adding helper functions, or more complicated sets and combinations of existing commands is __simple__ and really __useful__|no description given": "Adding helper functions, or more complicated sets and combinations of existing commands is __simple__ and really __useful__",
     "Extendable|no description given": "Extendable",
-    "WebdriverIO has 1st class support for the __WebDriver specification__ as well as to __Appium__ and allows to run tests on desktop and mobile.|no description given": "WebdriverIO has 1st class support for the __WebDriver specification__ as well as to __Appium__ and allows to run tests on desktop and mobile.",
+    "WebdriverIO can be run on the [__WebDriver Protocol__](https://w3c.github.io/webdriver/) for true cross browser testing as well as [__Chrome DevTools Protocol__](https://chromedevtools.github.io/devtools-protocol/) for Chromium based automation using [Puppeteer](https://pptr.dev/).|no description given": "WebdriverIO can be run on the [__WebDriver Protocol__](https://w3c.github.io/webdriver/) for true cross browser testing as well as [__Chrome DevTools Protocol__](https://chromedevtools.github.io/devtools-protocol/) for Chromium based automation using [Puppeteer](https://pptr.dev/).",
     "Compatible|no description given": "Compatible",
-    "It implements all Webdriver protocol commands and provides useful integrations with other tools.|no description given": "It implements all Webdriver protocol commands and provides useful integrations with other tools.",
+    "The huge of variety of community plugins allows you to easily integrate and extend your setup to fulfill your requirements.|no description given": "The huge of variety of community plugins allows you to easily integrate and extend your setup to fulfill your requirements.",
     "Feature Rich|no description given": "Feature Rich",
     "Help Translate|recruit community translators for your project": "Help Translate",
     "Edit this Doc|recruitment message asking to edit the doc source": "Edit",

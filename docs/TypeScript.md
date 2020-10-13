@@ -3,57 +3,27 @@ id: typescript
 title: TypeScript Setup
 ---
 
-Similar to Babel setup, you can register [TypeScript](http://www.typescriptlang.org) to compile your `*.ts` files in the `before` hook of your config file. You will need [`ts-node`](https://github.com/TypeStrong/ts-node) and [`tsconfig-paths`](https://github.com/dividab/tsconfig-paths) installed as `devDependencies`.
+You can write tests using [TypeScript](http://www.typescriptlang.org) to get autocompletion and type safety.
+
+You will need [`typescript`](https://github.com/microsoft/TypeScript) and [`ts-node`](https://github.com/TypeStrong/ts-node) installed as `devDependencies`.
+
+```
+npm i typescript ts-node --save-dev
+```
 
 The minimum TypeScript version is 3.7.3.
 
-```js
-// wdio.conf.js
-before: function() {
-    // not needed for Cucumber
-    require('ts-node').register({ files: true })
-},
-```
-
-Similarly for Mocha:
-
-```js
-// wdio.conf.js
-mochaOpts: {
-    ui: 'bdd',
-    require: [
-        'tsconfig-paths/register'
-    ]
-},
-```
-
-And Cucumber:
-
-```js
-// wdio.conf.js
-cucumberOpts: {
-    requireModule: [
-        'tsconfig-paths/register',
-        () => { require('ts-node').register({ files: true }) },
-    ],
-    require: [/* support and step definitions files here */],
-},
-```
+## Framework Setup
 
 And your `tsconfig.json` needs the following:
 
 ```json
 {
     "compilerOptions": {
-        "baseUrl": ".",
-        "paths": {
-            "*": [ "./*" ],
-            "src/*": ["./src/*"]
-        },
         "types": ["node", "webdriverio"]
     },
     "include": [
-        "./src/**/*.ts"
+        "./test/**/*.ts"
     ]
 }
 ```
@@ -73,45 +43,112 @@ Please avoid importing `webdriverio` or `@wdio/sync` explicitly.
 
 ### Typed Configuration
 
-You can even use a typed configuration if you desire.
+We recommend using a typed configuration to prevent unexpected errors in the `wdio.conf`.
 All you have to do is create a plain JS config file that registers TypeScript and requires the typed config:
 
 ```javascript
-require('ts-node/register')
-module.exports = require('./wdio.conf')
+require('ts-node').register({ transpileOnly: true })
+module.exports = require('./wdio.conf.ts')
 ```
 
 And in your typed configuration file:
 
 ```typescript
-const config: WebdriverIO.Config = {
+import { Config } from 'webdriverio';
+
+const config: Config = {
     // Put your webdriverio configuration here
 }
 
 export { config }
 ```
 
-### Framework types
+If you are using this approach for a typed configuration, you have to remove the line with 'ts-node/register' from your framework options in your config file.
 
-Depending on the framework you use, you will need to add the types for that framework to your `tsconfig.json` types property.
+### Non-typed configuration
 
-For instance, if you decide to use the Mocha framework, you need to add it like this to have all types globally available:
+If you still prefer to keep `wdio.conf` as a JavaScript file, the following framework configurations need to be applied to set up TypeScript properly with WebdriverIO.
 
+<!--DOCUSAURUS_CODE_TABS-->
+<!--Mocha-->
+```js
+// wdio.conf.js
+exports.config = {
+    // ...
+    mochaOpts: {
+        require: ['ts-node/register'],
+    },
+    // ...
+}
+```
+<!--Jasmine-->
+```js
+// wdio.conf.js
+exports.config = {
+    // ...
+    jasmineNodeOpts: {
+        requires: ['ts-node/register']
+    },
+    // ...
+}
+```
+<!--Cucumber-->
+```js
+// wdio.conf.js
+exports.config = {
+    // ...
+    cucumberOpts: {
+        requireModule: [
+            () => { require('ts-node').register({ transpileOnly: true }) },
+        ],
+        require: [/* support and step definitions files here */],
+    },
+    // ...
+}
+```
+<!--END_DOCUSAURUS_CODE_TABS-->
+
+## Framework types
+
+Depending on the framework you use, you will need to add the types for that framework to your `tsconfig.json` types property, as well as install its type definitions. This is especially important if you want to have type support for the built-in assertion library [`expect-webdriverio`](https://www.npmjs.com/package/expect-webdriverio).
+
+For instance, if you decide to use the Mocha framework, you need to install `@types/mocha` and add it like this to have all types globally available:
+
+<!--DOCUSAURUS_CODE_TABS-->
+<!--Mocha-->
 ```json
 {
     "compilerOptions": {
-        "baseUrl": ".",
-        "paths": {
-            "*": [ "./*" ],
-            "src/*": ["./src/*"]
-        },
         "types": ["node", "webdriverio", "@wdio/mocha-framework"]
     },
     "include": [
-        "./src/**/*.ts"
+        "./test/**/*.ts"
     ]
 }
 ```
+<!--Jasmine-->
+```json
+{
+    "compilerOptions": {
+        "types": ["node", "webdriverio", "@wdio/jasmine-framework"]
+    },
+    "include": [
+        "./test/**/*.ts"
+    ]
+}
+```
+<!--Cucumber-->
+```json
+{
+    "compilerOptions": {
+        "types": ["node", "webdriverio", "@wdio/cucumber-framework"]
+    },
+    "include": [
+        "./test/**/*.ts"
+    ]
+}
+```
+<!--END_DOCUSAURUS_CODE_TABS-->
 
 Instead of having all type definitions globally available, you can also `import` only the types that you need, like this:
 
@@ -123,38 +160,38 @@ Instead of having all type definitions globally available, you can also `import`
 import { Suite, Test } from '@wdio/mocha-framework'
 ```
 
-### Adding custom commands
+## Adding custom commands
 
 With TypeScript, it's easy to extend WebdriverIO interfaces. Add types to your [custom commands](CustomCommands.md) like this:
 
-1. Create types definition file (e.g., `./types/wdio.d.ts`)
-2. Specify path to types in `tsconfig.json`
+1. Create a type definition file (e.g., `./src/types/wdio.d.ts`)
+2. Make sure to include path in the `tsconfig.json`
 
 ```json
 {
-    "compilerOptions": {
-        "typeRoots": ["./types"]
-    }
+    "compilerOptions": { ... },
+    "include": [
+        "./test/**/*.ts",
+        "./src/**/*.ts"
+    ]
 }
 ```
 
-3. Add defintions for your commands according to your execution mode.
+3. Add definitions for your commands according to your execution mode.
 
-**Sync mode**
-
+<!--DOCUSAURUS_CODE_TABS-->
+<!--Sync Mode-->
 ```typescript
-declare module WebdriverIO {
+declare namespace WebdriverIO {
     // adding command to `browser`
     interface Browser {
         browserCustomCommand: (arg) => void
     }
 }
 ```
-
-**Async mode**
-
+<!--Async Mode-->
 ```typescript
-declare module WebdriverIO {
+declare namespace WebdriverIO {
     // adding command to `$()`
     interface Element {
         // don't forget to wrap return values with Promise
@@ -162,3 +199,35 @@ declare module WebdriverIO {
     }
 }
 ```
+<!--END_DOCUSAURUS_CODE_TABS-->
+
+## Tips and Hints
+
+### tsconfig.json example
+
+```json
+{
+  "compilerOptions": {
+    "outDir": "./.tsbuild/",
+    "sourceMap": false,
+    "target": "es2019",
+    "module": "commonjs",
+    "removeComments": true,
+    "noImplicitAny": true,
+    "strictPropertyInitialization": true,
+    "strictNullChecks": true,
+    "types": [
+      "node",
+      "@wdio/mocha-framework",
+      "@wdio/sync"
+    ],
+  },
+  "include": [
+    "./test/**/*.ts"
+  ]
+}
+```
+
+### Compile & Lint
+
+To be entirely safe, you may consider following the best practices: compile your code with TypeScript compiler (run `tsc` or `npx tsc`) and have [eslint](https://www.npmjs.com/package/@typescript-eslint/eslint-plugin) running on [pre-commit hook](https://github.com/typicode/husky).

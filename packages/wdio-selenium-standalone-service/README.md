@@ -1,7 +1,9 @@
 WebdriverIO Selenium Standalone Service
 =======================================
 
-Handling the Selenium server is out of scope of the actual WebdriverIO project. This service helps you to run Selenium seamlessly when running tests with the [WDIO testrunner](https://webdriver.io/guide/testrunner/gettingstarted.html). It uses the well know [selenium-standalone](https://www.npmjs.com/package/selenium-standalone) NPM package that automatically sets up the standalone server and all required driver for you.
+Handling the Selenium server is out of scope of the actual WebdriverIO project. This service helps you to run Selenium seamlessly when running tests with the [WDIO testrunner](https://webdriver.io/guide/testrunner/gettingstarted.html). It uses the well known [selenium-standalone](https://www.npmjs.com/package/selenium-standalone) NPM package that automatically sets up the standalone server and all required driver for you.
+
+__Note:__ If you use this service you don't need any other driver services (e.g. [wdio-chromedriver-service](https://www.npmjs.com/package/wdio-chromedriver-service)) anymore. All local browser can be started using this service.
 
 ## Installation
 
@@ -11,9 +13,9 @@ The easiest way is to keep `@wdio/selenium-standalone-service` as a devDependenc
 
 ```json
 {
-  "devDependencies": {
-    "@wdio/selenium-standalone-service": "^5.0.0"
-  }
+    "devDependencies": {
+        "@wdio/selenium-standalone-service": "^6.6.1"
+    }
 }
 ```
 
@@ -31,31 +33,61 @@ By default, Google Chrome and Firefox are available when installed on the host s
 
 ```js
 // wdio.conf.js
+const drivers = {
+    chrome: { version: '86.0.4240.22' }, // https://chromedriver.chromium.org/
+    firefox: { version: '0.27.0' } // https://github.com/mozilla/geckodriver/releases
+    chromiumedge: { version: '85.0.564.70' } // https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/
+}
+
 export.config = {
-  // ...
-  services: ['selenium-standalone'],
-  seleniumLogs: 'logs',
-  seleniumInstallArgs: {
-    drivers: {
-      chrome: { version: '77.0.3865.40' },
-      firefox: { version: '0.25.0' },
-    }
-  },
-  seleniumArgs: {
-    drivers: {
-      chrome: { version: '77.0.3865.40' },
-      firefox: { version: '0.25.0' },
-    }
-  },
-  // ...
+    // ...
+    services: [
+        ['selenium-standalone', {
+            logPath: 'logs',
+            installArgs: { drivers },
+            args: { drivers },
+        }]
+    ],
+    // ...
 };
+```
+
+### Custom Configurations
+
+By default the service starts on `localhost:4444` and ensures that all capabilities are able to connect to it. If you prefer to run on a different port please specify `port` as an option in your capabilities, e.g.:
+
+```js
+// wdio.conf.js
+export.config = {
+    // ...
+    services: [
+        ['selenium-standalone', {
+            logPath: './temp',
+            args: {
+                version: "3.141.59",
+                seleniumArgs: ['-host', '127.0.0.1','-port', '5555']
+            },
+        }]
+    ],
+    capabilities: [{
+        browserName: 'chrome',
+        port: 5555
+    }, {
+        browserName: 'firefox',
+        port: 5555
+    }, {
+        browserName: 'MicrosoftEdge',
+        port: 5555
+    }]
+    // ...
+}
 ```
 
 ## Options
 
 The following options can be added to the wdio.conf.js file.
 
-### seleniumLogs
+### logPath
 Path where all logs from the Selenium server should be stored.
 
 Type: `String`
@@ -64,12 +96,12 @@ Default: `{}`
 
 Example:
 ```js
-seleniumLogs : "./",
+logPath : './',
 ```
 
-### seleniumArgs
+### [`args`](https://www.npmjs.com/package/selenium-standalone#seleniumstartopts-cb)
 Map of arguments for the Selenium server, passed directly to `Selenium.start()`.
-Please note that latest drivers have to be installed, see `seleniumInstallArgs`.
+Please note that latest drivers have to be installed, see `installArgs`.
 
 Type: `Object`
 
@@ -77,18 +109,18 @@ Default: `{}`
 
 Example:
 ```js
-seleniumArgs: {
-  version : "3.141.59",
-  drivers : {
-    chrome : {
-      version : "77.0.3865.40",
-      arch    : process.arch,
+args: {
+    version : "3.141.59",
+    drivers : {
+        chrome : {
+            version : "86.0.4240.22",
+            arch    : process.arch,
+        }
     }
-  }
 },
 ```
 
-### seleniumInstallArgs
+### [`installArgs`](https://www.npmjs.com/package/selenium-standalone#seleniuminstallopts-cb)
 Map of arguments for the Selenium server, passed directly to `Selenium.install()`.
 
 By default, versions will be installed based on what is set in the selenium-standalone package. The defaults can be overridden by specifying the versions.
@@ -99,16 +131,16 @@ Default: `{}`
 
 Example:
 ```js
-seleniumInstallArgs: {
-  version : "3.141.59",
-  baseURL : "https://selenium-release.storage.googleapis.com",
-  drivers : {
-    chrome : {
-      version : "77.0.3865.40",
-      arch    : process.arch,
-      baseURL : "https://chromedriver.storage.googleapis.com",
+installArgs: {
+    version : "3.141.59",
+    baseURL : "https://selenium-release.storage.googleapis.com",
+    drivers : {
+        chrome : {
+            version : "86.0.4240.22",
+            arch    : process.arch,
+            baseURL : "https://chromedriver.storage.googleapis.com",
+        }
     }
-  }
 },
 ```
 

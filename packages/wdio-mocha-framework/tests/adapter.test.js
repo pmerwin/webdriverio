@@ -2,6 +2,7 @@ import path from 'path'
 import Mocha from 'mocha'
 import logger from '@wdio/logger'
 import { runTestInFiberContext, executeHooksWithArgs } from '@wdio/utils'
+import { setOptions } from 'expect-webdriverio'
 
 import MochaAdapterFactory, { MochaAdapter } from '../src'
 import { loadModule } from '../src/utils'
@@ -18,7 +19,7 @@ const wdioReporter = {
 }
 const adapterFactory = (config) => new MochaAdapter(
     '0-2',
-    { featureFlags: {}, ...config },
+    { ...config },
     ['/foo/bar.test.js'],
     { browserName: 'chrome' },
     wdioReporter
@@ -34,7 +35,7 @@ test('comes with a factory', async () => {
     expect(typeof MochaAdapterFactory.init).toBe('function')
     const instance = await MochaAdapterFactory.init(
         '0-2',
-        { featureFlags: {} },
+        {},
         ['/foo/bar.test.js'],
         { browserName: 'chrome' },
         wdioReporter
@@ -49,7 +50,9 @@ test('should properly set up mocha', async () => {
     const result = await adapter.run()
     expect(result).toBe(0)
 
-    expect(adapter.mocha.loadFiles).toBeCalled()
+    expect(setOptions).toBeCalledTimes(1)
+    expect(adapter.mocha.loadFiles).not.toBeCalled()
+    expect(adapter.mocha.loadFilesAsync).toBeCalled()
     expect(adapter.mocha.reporter).toBeCalled()
     expect(adapter.mocha.fullTrace).toBeCalled()
     expect(adapter.mocha.run).toBeCalled()
@@ -74,6 +77,14 @@ test('should throw runtime error if spec is invalid', async () => {
     const runtimeError = new Error('Uuups')
     const adapter = adapterFactory({ mochaOpts: { mockRuntimeError: runtimeError } })
     await adapter.init()
+    await expect(adapter.run()).rejects.toEqual(runtimeError)
+})
+
+test('should throw runtime error if spec could not be loaded', async () => {
+    const runtimeError = new Error('Uuups')
+    const adapter = adapterFactory({ mochaOpts: { mockFailureCount: 0 } })
+    await adapter.init()
+    adapter.specLoadError = runtimeError
     await expect(adapter.run()).rejects.toEqual(runtimeError)
 })
 
@@ -152,56 +163,89 @@ test('prepareMessage', async () => {
     expect(result.file).toBe('/foo/bar.test.js')
 })
 
-test('formatMessage', () => {
-    const adapter = adapterFactory()
+describe('formatMessage', () => {
+    test('should do nothing if no error or params are given', () => {
+        const adapter = adapterFactory()
+        let params = { type: 'foobar' }
+        let message = adapter.formatMessage(params)
+        expect(message).toMatchSnapshot()
+    })
 
-    let params = { type: 'foobar' }
-    let message = adapter.formatMessage(params)
-    expect(message).toEqual(params)
+    test('should format an error message', () => {
+        const adapter = adapterFactory()
+        const params = { type: 'foobar', err: new Error('uups') }
+        const message = adapter.formatMessage(params)
 
-    params = { type: 'foobar', err: new Error('uups') }
-    message = adapter.formatMessage(params)
-    expect(message.error.message).toEqual('uups')
-    expect(message.error.type).toEqual('Error')
+        // delete stack to avoid differences in stack paths
+        delete message.error.stack
 
-    params = { type: 'foobar', payload: {
-        title: 'barfoo',
-        parent: { title: 'parentfoo' },
-        context: 'some context',
-        ctx: { currentTest: { title: 'current test' } },
-        file: '/foo/bar.test.js'
-    } }
-    message = adapter.formatMessage(params)
-    expect(message.title).toEqual('barfoo')
-    expect(message.parent).toEqual('parentfoo')
-    expect(message.currentTest).toEqual('current test')
-    expect(message.fullTitle).toBe('parentfoo barfoo')
-    expect(message.file).toBe('/foo/bar.test.js')
+        expect(message).toMatchSnapshot()
+    })
 
-    params = { type: 'foobar', payload: {
-        title: 'barfoo',
-        parent: { title: '', suites: [{ title: 'first suite' }] }
-    } }
-    message = adapter.formatMessage(params)
-    expect(message.parent).toEqual('')
+    test('should format an error message with timeout error', () => {
+        const adapter = adapterFactory()
+        const params = {
+            type: 'foobar',
+            payload: {
+                title: 'barfoo',
+                parent: { title: 'parentfoo' }
+            },
+            err: new Error('For async tests and hooks, ensure "done()" is called; if returning a Promise, ensure it resolves.')
+        }
+        const message = adapter.formatMessage(params)
 
-    params = { type: 'foobar', payload: {
-        title: 'barfoo',
-        parent: {},
-        fullTitle: () => 'full title'
-    } }
-    message = adapter.formatMessage(params)
-    expect(message.fullTitle).toEqual('full title')
+        // delete stack to avoid differences in stack paths
+        delete message.error.stack
 
-    params = { type: 'afterTest', payload: {
-        title: 'barfoo',
-        parent: {},
-        state: 'failed',
-        duration: 123
-    } }
-    message = adapter.formatMessage(params)
-    expect(message.passed).toBe(false)
-    expect(message.duration).toBe(123)
+        expect(message).toMatchSnapshot()
+    })
+
+    test('should format payload', () => {
+        const adapter = adapterFactory()
+        const params = { type: 'foobar', payload: {
+            title: 'barfoo',
+            parent: { title: 'parentfoo' },
+            context: 'some context',
+            ctx: { currentTest: { title: 'current test' } },
+            file: '/foo/bar.test.js'
+        } }
+        const message = adapter.formatMessage(params)
+        expect(message).toMatchSnapshot()
+    })
+
+    test('should format parent title', () => {
+        const adapter = adapterFactory()
+        const params = { type: 'foobar', payload: {
+            title: 'barfoo',
+            parent: { title: '', suites: [{ title: 'first suite' }] }
+        } }
+        const message = adapter.formatMessage(params)
+        expect(message.parent).toEqual('')
+    })
+
+    test('should use fullTitle function if given', () => {
+        const adapter = adapterFactory()
+        const params = { type: 'foobar', payload: {
+            title: 'barfoo',
+            parent: {},
+            fullTitle: () => 'full title'
+        } }
+        const message = adapter.formatMessage(params)
+        expect(message.fullTitle).toEqual('full title')
+    })
+
+    test('should format test status', () => {
+        const adapter = adapterFactory()
+        const params = { type: 'afterTest', payload: {
+            title: 'barfoo',
+            parent: {},
+            state: 'failed',
+            duration: 123
+        } }
+        const message = adapter.formatMessage(params)
+        expect(message.passed).toBe(false)
+        expect(message.duration).toBe(123)
+    })
 })
 
 test('requireExternalModules', () => {
@@ -320,59 +364,53 @@ test('getUID', () => {
 })
 
 describe('loadFiles', () => {
-    test('should do nothing if feature is not enabled', () => {
-        const adapter = adapterFactory()
-        adapter._hasTests = null
-        expect(adapter._loadFiles({})).toBe(false)
-        expect(adapter._hasTests).toBe(null)
-    })
-
-    test('should set _hasTests to true if there are tests to run', () => {
-        const adapter = adapterFactory({ featureFlags: { specFiltering: true } })
+    test('should set _hasTests to true if there are tests to run', async () => {
+        const adapter = adapterFactory({})
         adapter._hasTests = null
         adapter.mocha = {
-            loadFiles: jest.fn(),
+            loadFilesAsync: jest.fn(),
             suite: 1 // mochaRunner.total
         }
-        adapter._loadFiles({})
+        await adapter._loadFiles({})
         expect(adapter._hasTests).toBe(true)
     })
 
-    test('should set _hasTests to false if there no tests to run', () => {
-        const adapter = adapterFactory({ featureFlags: { specFiltering: true } })
+    test('should set _hasTests to false if there no tests to run', async () => {
+        const adapter = adapterFactory({})
         adapter._hasTests = null
         adapter.mocha = {
-            loadFiles: jest.fn(),
+            loadFilesAsync: jest.fn(),
             options: { grep: 'regexp foo' },
             suite: 0 // mochaRunner.total
         }
-        adapter._loadFiles({ grep: 'foo', invert: 'invert' })
+        await adapter._loadFiles({ grep: 'foo', invert: 'invert' })
         expect(Mocha.Runner.mock.results[0].value.grep).toBeCalledWith('regexp foo', 'invert')
         expect(adapter._hasTests).toBe(false)
     })
 
-    test('should not fail on exception', () => {
-        const adapter = adapterFactory({ featureFlags: { specFiltering: true } })
+    test('should propagate error', async () => {
+        const adapter = adapterFactory({})
         adapter._hasTests = null
         adapter.mocha = {
-            loadFiles: jest.fn().mockImplementation(() => { throw new Error('foo') }),
+            loadFilesAsync: jest.fn().mockImplementation(
+                () => Promise.reject(new Error('foo'))
+            ),
         }
-        adapter._loadFiles({})
-        expect(adapter.mocha.loadFiles).toBeCalled()
+        await adapter._loadFiles({})
+        expect(adapter.mocha.loadFilesAsync).toBeCalled()
         expect(adapter._hasTests).toBe(null)
+        expect(adapter.specLoadError.message)
+            .toContain('Unable to load spec files')
     })
 })
 
 describe('hasTests', () => {
     test('should return true if feature is not enabled', () => {
         const adapter = adapterFactory()
-        adapter._hasTests = 'foobar'
+        adapter._hasTests = true
         expect(adapter.hasTests()).toBe(true)
-    })
-    test('should return _hasTests if feature is enabled', () => {
-        const adapter = adapterFactory({ featureFlags: { specFiltering: true } })
-        adapter._hasTests = 'foobar'
-        expect(adapter.hasTests()).toBe('foobar')
+        adapter._hasTests = false
+        expect(adapter.hasTests()).toBe(false)
     })
 })
 
@@ -380,4 +418,5 @@ afterEach(() => {
     Mocha.Runner.mockClear()
     runTestInFiberContext.mockReset()
     executeHooksWithArgs.mockReset()
+    setOptions.mockClear()
 })

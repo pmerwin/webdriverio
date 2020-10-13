@@ -8,7 +8,7 @@ const INTERFACES = {
     bdd: ['beforeAll', 'beforeEach', 'it', 'xit', 'fit', 'afterEach', 'afterAll']
 }
 const TEST_INTERFACES = ['it', 'fit', 'xit']
-const NOOP = function noop () {}
+const NOOP = function noop() { }
 const DEFAULT_TIMEOUT_INTERVAL = 60000
 
 const log = logger('@wdio/jasmine-framework')
@@ -17,7 +17,7 @@ const log = logger('@wdio/jasmine-framework')
  * Jasmine 2.x runner
  */
 class JasmineAdapter {
-    constructor (cid, config, specs, capabilities, reporter) {
+    constructor(cid, config, specs, capabilities, reporter) {
         this.cid = cid
         this.config = config
         this.capabilities = capabilities
@@ -38,7 +38,7 @@ class JasmineAdapter {
         this._hasTests = true
     }
 
-    async init () {
+    async init() {
         const self = this
 
         this.jrunner = new Jasmine()
@@ -53,24 +53,20 @@ class JasmineAdapter {
         jasmineEnv.addReporter(this.reporter)
 
         /**
-         * Set whether to stop suite execution when a spec fails
-         */
-        const stopOnSpecFailure = !!this.jasmineNodeOpts.stopOnSpecFailure
-
-        /**
-         * Set whether to stop spec execution when an expectation fails
-        */
-        const stopSpecOnExpectationFailure = !!this.jasmineNodeOpts.stopSpecOnExpectationFailure
-
-        /**
          * Filter specs to run based on jasmineNodeOpts.grep and jasmineNodeOpts.invert
          */
         jasmineEnv.configure({
-            specFilter: ::this.customSpecFilter,
-            stopOnSpecFailure: stopOnSpecFailure,
+            specFilter: this.jasmineNodeOpts.specFilter || this.customSpecFilter.bind(this),
+            stopOnSpecFailure: Boolean(this.jasmineNodeOpts.stopOnSpecFailure),
+            failSpecWithNoExpectations: Boolean(this.jasmineNodeOpts.failSpecWithNoExpectations),
+            failFast: this.jasmineNodeOpts.failFast,
             random: Boolean(this.jasmineNodeOpts.random),
-            oneFailurePerSpec: stopSpecOnExpectationFailure,
-            failFast: this.jasmineNodeOpts.failFast
+            seed: Boolean(this.jasmineNodeOpts.seed),
+            oneFailurePerSpec: Boolean(
+                // depcrecated old property
+                this.jasmineNodeOpts.stopSpecOnExpectationFailure ||
+                this.jasmineNodeOpts.oneFailurePerSpec
+            )
         })
 
         /**
@@ -146,10 +142,7 @@ class JasmineAdapter {
         return this
     }
 
-    _loadFiles () {
-        if (this.config.featureFlags.specFiltering !== true) {
-            return false
-        }
+    _loadFiles() {
         try {
             if (Array.isArray(this.jasmineNodeOpts.requires)) {
                 this.jrunner.addRequires(this.jasmineNodeOpts.requires)
@@ -184,15 +177,21 @@ class JasmineAdapter {
         })
     }
 
-    hasTests () {
-        /**
-         * filter specs only if feature enabled explicitly to avoid breaking changes.
-         * If the feature is enabled user should avoid interacting with `browser` object before session is started
-         */
-        return this.config.featureFlags.specFiltering !== true || this._hasTests
+    hasTests() {
+        return this._hasTests
     }
 
-    async run () {
+    async run() {
+        /**
+         * import and set options for `expect-webdriverio` assertion lib once
+         * the framework was initiated so that it can detect the environment
+         */
+        const { setOptions } = require('expect-webdriverio')
+        setOptions({
+            wait: this.config.waitforTimeout, // ms to wait for expectation to succeed
+            interval: this.config.waitforInterval, // interval between attempts
+        })
+
         const result = await new Promise((resolve) => {
             this.jrunner.env.beforeAll(this.wrapHook('beforeSuite'))
             this.jrunner.env.afterAll(this.wrapHook('afterSuite'))
@@ -204,7 +203,7 @@ class JasmineAdapter {
         return result
     }
 
-    customSpecFilter (spec) {
+    customSpecFilter(spec) {
         const { grep, invertGrep } = this.jasmineNodeOpts
         const grepMatch = !grep || spec.getFullName().match(new RegExp(grep)) !== null
         if (grepMatch === Boolean(invertGrep)) {
@@ -215,9 +214,9 @@ class JasmineAdapter {
     }
 
     /**
-     * Hooks which are added as true Mocha hooks need to call done() to notify async
+     * Hooks which are added as true Jasmine hooks need to call done() to notify async
      */
-    wrapHook (hookName) {
+    wrapHook(hookName) {
         return (done) => executeHooksWithArgs(
             this.config[hookName],
             this.prepareMessage(hookName)
@@ -227,7 +226,7 @@ class JasmineAdapter {
         })
     }
 
-    prepareMessage (hookName) {
+    prepareMessage(hookName) {
         const params = { type: hookName }
 
         switch (hookName) {
@@ -248,7 +247,7 @@ class JasmineAdapter {
         return this.formatMessage(params)
     }
 
-    formatMessage (params) {
+    formatMessage(params) {
         let message = {
             type: params.type
         }
@@ -280,7 +279,7 @@ class JasmineAdapter {
         return message
     }
 
-    getExpectationResultHandler (jasmine) {
+    getExpectationResultHandler(jasmine) {
         let { expectationResultHandler } = this.jasmineNodeOpts
         const origHandler = jasmine.Spec.prototype.addExpectationResult
 
@@ -291,7 +290,7 @@ class JasmineAdapter {
         return this.expectationResultHandler(origHandler)
     }
 
-    expectationResultHandler (origHandler) {
+    expectationResultHandler(origHandler) {
         const { expectationResultHandler } = this.jasmineNodeOpts
         return function (passed, data) {
             try {

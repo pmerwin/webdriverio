@@ -18,9 +18,9 @@ $ npm i webdriver
 The following example demonstrates a simple Google Search scenario:
 
 ```js
-import WebDriver from 'webdriver'
+import WebDriver from 'webdriver';
 
-;(async () => {
+(async () => {
     const client = await WebDriver.newSession({
         path: '/',
         capabilities: { browserName: 'firefox' }
@@ -84,25 +84,51 @@ Type: `Number`<br>
 Default: *4444*
 
 ### path
-Path to WebDriver server.
+Path to WebDriver endpoint or grid server.
 
 Type: `String`<br>
-Default: */wd/hub*
+Default: */*
 
-### baseUrl
-Shorten `url` command calls by setting a base url.
+### queryParams
+Query paramaters that are propagated to the driver server.
 
-Type: `String`<br>
-Default: *null*
+Type: `Object`
+Default: `null`
 
 ### connectionRetryTimeout
 Timeout for any WebDriver request to a driver or grid.
 
 Type: `Number`<br>
-Default: *90000*
+Default: *120000*
 
 ### connectionRetryCount
 Count of request retries to the Selenium server.
 
 Type: `Number`<br>
 Default: *2*
+
+### agent
+
+Allows you to use a custom` http`/`https`/`http2` [agent](https://www.npmjs.com/package/got#agent) to make requests.
+
+Type: `Object`<br>
+Default:
+
+```js
+{
+    http: new http.Agent({ keepAlive: true }),
+    https: new https.Agent({ keepAlive: true })
+}
+```
+
+### transformRequest
+Function intercepting [HTTP request options](https://github.com/sindresorhus/got#options) before a WebDriver request is made
+
+Type: `(RequestOptions) => RequestOptions`<br>
+Default: *none*
+
+### transformResponse
+Function intercepting HTTP response objects after a WebDriver response has arrived
+
+Type: `(Response, RequestOptions) => Response`<br>
+Default: *none*

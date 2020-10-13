@@ -1,8 +1,8 @@
 import AppiumLauncher from '../src/launcher'
 import childProcess from 'child_process'
 import fs from 'fs-extra'
-import path from 'path'
 
+jest.unmock('@wdio/config')
 jest.mock('child_process', () => ({
     spawn: jest.fn(),
 }))
@@ -10,7 +10,6 @@ jest.mock('fs-extra', () => ({
     createWriteStream: jest.fn(),
     ensureFileSync: jest.fn(),
 }))
-global.console.error = jest.fn()
 
 class eventHandler {
     registered = {};
@@ -49,82 +48,218 @@ class MockFailingProcess extends MockProcess {
     }
 }
 
+class MockCustomFailingProcess extends MockFailingProcess {
+    stderr = { pipe: jest.fn(), once: jest.fn().mockImplementation((event, cb) => cb(new Error('Uups'))) }
+}
+
+jest.mock('../src/utils', () => {
+    const { cliArgsFromKeyValue } = jest.requireActual('../src/utils')
+    return {
+        getFilePath: jest.fn().mockReturnValue('/some/file/path'),
+        getAppiumCommand: jest.fn().mockReturnValue('/appium/command/path'),
+        cliArgsFromKeyValue
+    }
+})
+
 describe('Appium launcher', () => {
-    let launcher = undefined
-    let getAppiumCommand
+    const originalPlatform = process.platform
 
     beforeEach(() => {
+        global.console.error = jest.fn()
         childProcess.spawn.mockClear()
         childProcess.spawn.mockReturnValue(new MockProcess())
-        launcher = new AppiumLauncher()
-        getAppiumCommand = launcher._getAppiumCommand
-        launcher._getAppiumCommand = jest.fn().mockImplementation(() => require.resolve('param-case'))
-    })
-
-    afterEach(() => {
-        launcher.onComplete()
     })
 
     describe('onPrepare', () => {
+        const isWindows = process.platform === 'win32'
         test('should set correct config properties', async () => {
-            const config = {
-                appium: {
-                    logPath: './',
-                    command: 'path/to/my_custom_appium',
-                    args: { foo: 'bar' }
-                }
+            const options = {
+                logPath: './',
+                command:'path/to/my_custom_appium',
+                args: { foo: 'bar' }
             }
-            await launcher.onPrepare(config)
+            const capabilities = [{ port: 1234 }]
+            const launcher = new AppiumLauncher(options, capabilities, {})
+            launcher._startAppium = jest.fn().mockImplementation((cmd, args, cb) => cb(null, new MockProcess()))
+            await launcher.onPrepare()
 
-            expect(launcher.logPath).toBe(config.appium.logPath)
-            expect(launcher.command).toBe(config.appium.command)
-            expect(launcher.appiumArgs).toEqual(['--foo', 'bar'])
+            expect(launcher.process).toBeInstanceOf(MockProcess)
+            expect(launcher.logPath).toBe('./')
+            if (isWindows) {
+                expect(launcher.command).toBe('cmd')
+            } else {
+                expect(launcher.command).toBe('path/to/my_custom_appium')
+            }
+            expect(capabilities[0].protocol).toBe('http')
+            expect(capabilities[0].hostname).toBe('localhost')
+            expect(capabilities[0].port).toBe(1234)
+            expect(capabilities[0].path).toBe('/')
+        })
+
+        test('should set correct config properties using multiremote', async () => {
+            const options = {
+                logPath: './',
+                command: 'path/to/my_custom_appium',
+                args: { foo: 'bar' }
+            }
+            const capabilities = {
+                browserA: { port: 1234 },
+                browserB: {}
+            }
+            const launcher = new AppiumLauncher(options, capabilities, {})
+            launcher._startAppium = jest.fn().mockImplementation((cmd, args, cb) => cb(null, new MockProcess()))
+            await launcher.onPrepare()
+            expect(capabilities.browserA.protocol).toBe('http')
+            expect(capabilities.browserA.hostname).toBe('localhost')
+            expect(capabilities.browserA.port).toBe(1234)
+            expect(capabilities.browserA.path).toBe('/')
+            expect(capabilities.browserB.protocol).toBe('http')
+            expect(capabilities.browserB.hostname).toBe('localhost')
+            expect(capabilities.browserB.port).toBe(4723)
+            expect(capabilities.browserB.path).toBe('/')
+        })
+
+        test('should not override cloud config using multiremote', async () => {
+            const options = {
+                logPath : './',
+                args : { foo : 'foo' },
+                installArgs : { bar : 'bar' },
+            }
+            const capabilities = {
+                browserA: { port: 1234 },
+                browserB: { port: 4321, capabilities: { 'bstack:options': {} } }
+            }
+            const launcher = new AppiumLauncher(options, capabilities, {})
+            launcher._redirectLogStream = jest.fn()
+            await launcher.onPrepare({ watch: true })
+            expect(capabilities.browserA.protocol).toBe('http')
+            expect(capabilities.browserA.hostname).toBe('localhost')
+            expect(capabilities.browserA.port).toBe(1234)
+            expect(capabilities.browserA.path).toBe('/')
+            expect(capabilities.browserB.protocol).toBeUndefined()
+            expect(capabilities.browserB.hostname).toBeUndefined()
+            expect(capabilities.browserB.port).toBe(4321)
+            expect(capabilities.browserB.path).toBeUndefined()
+        })
+
+        test('should respect custom Appium port', async () => {
+            const options = {
+                logPath: './',
+                command: 'path/to/my_custom_appium',
+                args: { foo: 'bar', port: 1234 }
+            }
+            const capabilities = [{}]
+            const launcher = new AppiumLauncher(options, capabilities, {})
+            launcher._startAppium = jest.fn().mockImplementation(
+                (cmd, args, cb) => cb(null, new MockProcess()))
+            await launcher.onPrepare()
+
+            expect(launcher.process).toBeInstanceOf(MockProcess)
+            expect(launcher.logPath).toBe('./')
+            if (isWindows) {
+                expect(launcher.command).toBe('cmd')
+            } else {
+                expect(launcher.command).toBe('path/to/my_custom_appium')
+            }
+            expect(capabilities[0].protocol).toBe('http')
+            expect(capabilities[0].hostname).toBe('localhost')
+            expect(capabilities[0].port).toBe(1234)
+            expect(capabilities[0].path).toBe('/')
+        })
+
+        test('should respect custom port and path before Appium port and path', async () => {
+            const options = {
+                logPath: './',
+                command: 'path/to/my_custom_appium',
+                args: { foo: 'bar', port: 1234, basePath: '/foo/bar' }
+            }
+            const capabilities = [{ port: 4321 }]
+            const launcher = new AppiumLauncher(options, capabilities, {})
+            launcher._startAppium = jest.fn().mockImplementation(
+                (cmd, args, cb) => cb(null, new MockProcess()))
+            await launcher.onPrepare()
+
+            expect(launcher.process).toBeInstanceOf(MockProcess)
+            expect(launcher.logPath).toBe('./')
+            if (isWindows) {
+                expect(launcher.command).toBe('cmd')
+            } else {
+                expect(launcher.command).toBe('path/to/my_custom_appium')
+            }
+
+            expect(capabilities[0].protocol).toBe('http')
+            expect(capabilities[0].hostname).toBe('localhost')
+            expect(capabilities[0].port).toBe(4321)
+            expect(capabilities[0].path).toBe('/foo/bar')
         })
 
         test('should set correct config properties for Windows', async () => {
-            const originalPlatform = process.platform
             Object.defineProperty(process, 'platform', {
                 value: 'win32'
             })
 
-            const config = {
-                appium: {
-                    logPath: './',
-                    command: 'path/to/my_custom_appium',
-                    args: { foo: 'bar' }
-                }
-            }
-            await launcher.onPrepare(config)
+            const launcher = new AppiumLauncher({
+                logPath: './',
+                command: 'path/to/my_custom_appium',
+                args: { foo: 'bar' }
+            }, [], {})
+            await launcher.onPrepare()
 
             expect(launcher.command).toBe('cmd')
-            expect(launcher.appiumArgs).toEqual(['/c', config.appium.command, '--foo', 'bar'])
+            expect(launcher.appiumArgs).toMatchSnapshot()
+        })
 
+        test('should set correct config properties for mac', async () => {
             Object.defineProperty(process, 'platform', {
-                value: originalPlatform
+                value: 'darwin'
             })
+
+            const launcher = new AppiumLauncher({
+                logPath: './',
+                command: 'path/to/my_custom_appium',
+                args: { foo: 'bar' }
+            }, [], {})
+            await launcher.onPrepare()
+
+            expect(launcher.command).toBe('path/to/my_custom_appium')
+            expect(launcher.appiumArgs).toMatchSnapshot()
+        })
+
+        test('should set correct config properties for linux', async () => {
+            Object.defineProperty(process, 'platform', {
+                value: 'linux'
+            })
+
+            const launcher = new AppiumLauncher({
+                logPath: './',
+                command: 'path/to/my_custom_appium',
+                args: { foo: 'bar' }
+            }, [], {})
+            await launcher.onPrepare()
+
+            expect(launcher.command).toBe('path/to/my_custom_appium')
+            expect(launcher.appiumArgs).toMatchSnapshot()
         })
 
         test('should set correct config properties when empty', async () => {
-            await launcher.onPrepare({})
+            const launcher = new AppiumLauncher({}, [], {})
+            await launcher.onPrepare()
 
             expect(launcher.logPath).toBe(undefined)
-            expect(launcher.command).toBe('node')
-            expect(launcher.appiumArgs).toEqual([path.join(process.cwd(), 'packages/wdio-appium-service/node_modules/param-case/dist/index.js')])
+            if (isWindows) {
+                expect(launcher.command).toBe('cmd')
+            } else {
+                expect(launcher.command).toBe('node')
+            }
         })
 
         test('should start Appium', async () => {
-            await launcher.onPrepare({
-                appium: {
-                    args: { superspeed: true }
-                }
-            })
-
-            expect(childProcess.spawn.mock.calls[0][0]).toBe('node')
-            expect(childProcess.spawn.mock.calls[0][1]).toEqual([path.join(process.cwd(), 'packages/wdio-appium-service/node_modules/param-case/dist/index.js'), '--superspeed'])
-            expect(childProcess.spawn.mock.calls[0][2]).toEqual({ stdio: ['ignore', 'pipe', 'pipe'] })
+            const launcher = new AppiumLauncher({ args: { superspeed: true } }, [], {})
+            await launcher.onPrepare()
         })
 
         test('should fail if Appium exits', async () => {
+            const launcher = new AppiumLauncher({}, [], {})
             childProcess.spawn.mockReturnValue(new MockFailingProcess(1))
 
             let error
@@ -138,6 +273,7 @@ describe('Appium launcher', () => {
         })
 
         test('should fail and error message if Appium already runs', async () => {
+            const launcher = new AppiumLauncher({}, [], {})
             childProcess.spawn.mockReturnValue(new MockFailingProcess(2))
 
             let error
@@ -150,79 +286,61 @@ describe('Appium launcher', () => {
                 "Check that you don't already have a running Appium service.")
             expect(error).toEqual(expectedError)
         })
+
+        test('should fail with Appium error message', async () => {
+            const launcher = new AppiumLauncher({}, [], {})
+            childProcess.spawn.mockReturnValue(new MockCustomFailingProcess(2))
+
+            let error
+            try {
+                await launcher.onPrepare({})
+            } catch (e) {
+                error = e
+            }
+            const expectedError = new Error('Appium exited before timeout (exit code: 2)\nError: Uups')
+            expect(error).toEqual(expectedError)
+        })
     })
 
     describe('onComplete', () => {
         test('should call process.kill', async () => {
+            const launcher = new AppiumLauncher({}, [], {})
             await launcher.onPrepare({})
             launcher.process.kill = jest.fn()
-
             launcher.onComplete()
-
             expect(launcher.process.kill).toBeCalled()
         })
 
         test('should not call process.kill', () => {
+            const launcher = new AppiumLauncher({}, [], {})
             expect(launcher.process).toBe(undefined)
-
             launcher.onComplete()
-
             expect(launcher.process).toBe(undefined)
         })
     })
 
     describe('_redirectLogStream', () => {
         test('should not write output to file', async () => {
+            const launcher = new AppiumLauncher({}, [], {})
             launcher._redirectLogStream = jest.fn()
-
             await launcher.onPrepare({})
-
             expect(launcher._redirectLogStream).not.toBeCalled()
         })
 
         test('should write output to file', async () => {
-            await launcher.onPrepare({
-                appium: {
-                    logPath: './'
-                },
-            })
+            const launcher = new AppiumLauncher({ logPath: './' }, [], {})
+            await launcher.onPrepare({})
 
-            expect(fs.createWriteStream.mock.calls[0][0]).toBe(path.join(process.cwd(), 'appium.txt'))
+            expect(fs.createWriteStream.mock.calls[0][0]).toBe('/some/file/path')
             expect(launcher.process.stdout.pipe).toBeCalled()
             expect(launcher.process.stderr.pipe).toBeCalled()
         })
     })
 
-    describe('_getAppiumCommand', () => {
-        test('should return path to dependency', () => {
-            expect(getAppiumCommand('fs-extra')).toBe(path.join(process.cwd(), 'packages/wdio-appium-service/node_modules/fs-extra/lib/index.js'))
-        })
-        test('should be appium by default', () => {
-            expect(() => getAppiumCommand()).toThrow("Cannot find module 'appium' from 'launcher.js'")
-        })
-    })
-
-    describe('argument formatting', () => {
-        test('should format arguments correctly', () => {
-            const args = launcher._cliArgsFromKeyValue({
-                address: '127.0.0.1',
-                commandTimeout: '7200',
-                showIosLog: false,
-                sessionOverride: true,
-                app: '/Users/frodo/My Projects/the-ring/the-ring.app'
-            })
-
-            expect(args[0]).toBe('--address')
-            expect(args[1]).toBe('127.0.0.1')
-            expect(args[2]).toBe('--command-timeout')
-            expect(args[3]).toBe('7200')
-            expect(args[4]).toBe('--session-override')
-        })
-        test('should not format arguments if array passed', () => {
-            const argsArray = ['-p', 4723]
-            const args = launcher._cliArgsFromKeyValue(argsArray)
-
-            expect(args).toBe(argsArray)
+    afterEach(() => {
+        global.console.error.mockRestore()
+        Object.defineProperty(process, 'platform', {
+            value: originalPlatform
         })
     })
 })

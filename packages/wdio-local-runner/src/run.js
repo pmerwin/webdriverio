@@ -7,8 +7,8 @@ import { SHUTDOWN_TIMEOUT } from './constants'
 
 const log = logger('@wdio/local-runner')
 
-const runner = new Runner()
-runner.on('exit', ::process.exit)
+export const runner = new Runner()
+runner.on('exit', process.exit.bind(process))
 runner.on('error', ({ name, message, stack }) => process.send({
     origin: 'worker',
     name: 'error',
@@ -17,7 +17,7 @@ runner.on('error', ({ name, message, stack }) => process.send({
 
 process.on('message', (m) => {
     if (!m || !m.command) {
-        return log.info('Ignore message for worker:', m)
+        return
     }
 
     log.info(`Run worker command: ${m.command}`)
@@ -40,7 +40,7 @@ process.on('message', (m) => {
 /**
  * catch sigint messages as they are handled by main process
  */
-exitHook((callback) => {
+export const exitHookFn = (callback) => {
     if (!callback) {
         return
     }
@@ -48,4 +48,5 @@ exitHook((callback) => {
     runner.sigintWasCalled = true
     log.info(`Received SIGINT, giving process ${SHUTDOWN_TIMEOUT}ms to shutdown gracefully`)
     setTimeout(callback, SHUTDOWN_TIMEOUT)
-})
+}
+exitHook(exitHookFn)

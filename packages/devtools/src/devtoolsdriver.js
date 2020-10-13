@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import uuidv4 from 'uuid/v4'
+import { v4 as uuidv4 } from 'uuid'
 
 import logger from '@wdio/logger'
 import { safeRequire } from '@wdio/utils'
@@ -12,7 +12,7 @@ import { DEFAULT_IMPLICIT_TIMEOUT, DEFAULT_PAGELOAD_TIMEOUT, DEFAULT_SCRIPT_TIME
 const log = logger('devtools')
 
 export default class DevToolsDriver {
-    constructor (browser, pages) {
+    constructor(browser, pages) {
         this.commands = {}
         this.elementStore = new ElementStore()
         this.windows = new Map()
@@ -21,7 +21,7 @@ export default class DevToolsDriver {
         this.browser = browser
 
         const dir = path.resolve(__dirname, 'commands')
-        const files = fs.readdirSync(dir)
+        const files = fs.readdirSync(dir).filter((file) => file.endsWith('.js'))
         for (let filename of files) {
             const commandName = path.basename(filename, path.extname(filename))
             this.commands[commandName] = safeRequire(path.join(dir, commandName)).default
@@ -30,6 +30,7 @@ export default class DevToolsDriver {
         for (const page of pages) {
             const pageId = uuidv4()
             this.windows.set(pageId, page)
+            this.currentFrame = page
             this.currentWindowHandle = pageId
         }
 
@@ -39,19 +40,19 @@ export default class DevToolsDriver {
         this.setTimeouts(DEFAULT_IMPLICIT_TIMEOUT, DEFAULT_PAGELOAD_TIMEOUT, DEFAULT_SCRIPT_TIMEOUT)
 
         const page = this.getPageHandle()
-        page.on('dialog', ::this.dialogHandler)
-        page.on('framenavigated', ::this.framenavigatedHandler)
+        page.on('dialog', this.dialogHandler.bind(this))
+        page.on('framenavigated', this.framenavigatedHandler.bind(this))
     }
 
     /**
      * moved into an extra method for testing purposes
      */
     /* istanbul ignore next */
-    static requireCommand (filePath) {
+    static requireCommand(filePath) {
         return require(filePath).default
     }
 
-    register (commandInfo) {
+    register(commandInfo) {
         const self = this
         const { command, ref, parameters, variables = [] } = commandInfo
 
@@ -102,10 +103,15 @@ export default class DevToolsDriver {
                 throw sanitizeError(err)
             }
 
-            this.emit('result', { command, params, retries, result })
-            log.info('RESULT', command.toLowerCase().includes('screenshot')
-                && typeof result === 'string' && result.length > 64
-                ? `${result.substr(0, 61)}...` : result)
+            this.emit('result', { command, params, retries, result: { value: result } })
+            if (typeof result !== 'undefined') {
+                const isScreenshot = (
+                    command.toLowerCase().includes('screenshot') &&
+                    typeof result === 'string' &&
+                    result.length > 64
+                )
+                log.info('RESULT', isScreenshot ? `${result.substr(0, 61)}...` : result)
+            }
 
             return result
         }
@@ -113,16 +119,16 @@ export default class DevToolsDriver {
         return wrappedCommand
     }
 
-    dialogHandler (dialog) {
+    dialogHandler(dialog) {
         this.activeDialog = dialog
     }
 
-    framenavigatedHandler (frame) {
+    framenavigatedHandler(frame) {
         this.currentFrameUrl = frame.url()
         this.elementStore.clear()
     }
 
-    setTimeouts (implicit, pageLoad, script) {
+    setTimeouts(implicit, pageLoad, script) {
         if (typeof implicit === 'number') {
             this.timeouts.set('implicit', implicit)
         }
@@ -137,7 +143,7 @@ export default class DevToolsDriver {
         page.setDefaultTimeout(this.timeouts.get('pageLoad'))
     }
 
-    getPageHandle (isInFrame = false) {
+    getPageHandle(isInFrame = false) {
         if (isInFrame && this.currentFrame) {
             return this.currentFrame
         }
@@ -145,7 +151,7 @@ export default class DevToolsDriver {
         return this.windows.get(this.currentWindowHandle)
     }
 
-    async checkPendingNavigations (pendingNavigationStart) {
+    async checkPendingNavigations(pendingNavigationStart) {
         /**
          * ensure there is no page transition happening and an execution context
          * is available

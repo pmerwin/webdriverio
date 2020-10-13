@@ -9,7 +9,7 @@ const MOBILE_CAPABILITIES = [
  * @param  {Object}  capabilities  caps of session response
  * @return {Boolean}               true if W3C (browser)
  */
-function isW3C (capabilities) {
+export function isW3C (capabilities) {
     /**
      * JSONWire protocol doesn't return a property `capabilities`.
      * Also check for Appium response as it is using JSONWire protocol for most of the part.
@@ -164,7 +164,7 @@ export function sessionEnvironmentDetector ({ capabilities, requestedCapabilitie
         isMobile: isMobile(capabilities),
         isIOS: isIOS(capabilities),
         isAndroid: isAndroid(capabilities),
-        isSauce: isSauce(requestedCapabilities.w3cCaps.alwaysMatch),
+        isSauce: isSauce(requestedCapabilities),
         isSeleniumStandalone: isSeleniumStandalone(capabilities)
     }
 }

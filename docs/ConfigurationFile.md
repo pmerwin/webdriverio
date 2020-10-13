@@ -21,28 +21,28 @@ exports.config = {
     // =====================
     // Host address of the running Selenium server. This information is usually obsolete, as
     // WebdriverIO automatically connects to localhost. Also if you are using one of the
-    // supported cloud services like Sauce Labs, Browserstack, or Testing Bot, you also don't
+    // supported cloud services like Sauce Labs, Browserstack, Testing Bot or LambdaTest, you also don't
     // need to define host and port information (because WebdriverIO can figure that out
     // from your user and key information). However, if you are using a private Selenium
     // backend, you should define the `hostname`, `port`, and `path` here.
     //
     hostname: 'localhost',
     port: 4444,
-    path: '/wd/hub',
+    path: '/',
     // Protocol: http | https
     // protocol: 'http',
     //
     // =================
     // Service Providers
     // =================
-    // WebdriverIO supports Sauce Labs, Browserstack, and Testing Bot. (Other cloud providers
+    // WebdriverIO supports Sauce Labs, Browserstack, Testing Bot and LambdaTest. (Other cloud providers
     // should work, too.) These services define specific `user` and `key` (or access key)
     // values you must put here, in order to connect to these services.
     //
     user: 'webdriverio',
     key:  'xxxxxxxxxxxxxxxx-xxxxxx-xxxxx-xxxxxxxxx',
     //
-    // If you run your tests on SauceLabs you can specify the region you want to run your tests
+    // If you run your tests on Sauce Labs you can specify the region you want to run your tests
     // in via the `region` property. Available short handles for regions are `us` (default) and `eu`.
     // These regions are used for the Sauce Labs VM cloud and the Sauce Labs Real Device Cloud.
     // If you don't provide the region, it defaults to `us`.
@@ -100,6 +100,12 @@ exports.config = {
         // (see https://developers.google.com/web/updates/2017/04/headless-chrome)
         // args: ['--headless', '--disable-gpu'],
         }
+        //
+        // Parameter to ignore some or all default flags
+        // - if value is true: ignore all DevTools 'default flags' and Puppeteer 'default arguments'
+        // - if value is an array: DevTools filters given default arguments
+        // ignoreDefaultArgs: true,
+        // ignoreDefaultArgs: ['--disable-sync', '--disable-extensions'],
     }, {
         // maxInstances can get overwritten per capability. So if you have an in house Selenium
         // grid with only 5 firefox instance available you can make sure that not more than
@@ -117,6 +123,9 @@ exports.config = {
         // it is possible to configure which logTypes to exclude.
         // excludeDriverLogs: ['*'], // pass '*' to exclude all driver session logs
         excludeDriverLogs: ['bugreport', 'server'],
+        //
+        // Parameter to ignore some or all Puppeteer default arguments
+        // ignoreDefaultArgs: ['-foreground'], // set value to true to ignore all default arguments
     }],
     //
     // Additional list of node arguments to use when starting child processes
@@ -170,6 +179,10 @@ exports.config = {
     //
     // The number of times to retry the entire specfile when it fails as a whole
     specFileRetries: 1,
+    // Delay in seconds between the spec file retry attempts
+    specFileRetriesDelay: 0,
+    // Whether or not retried specfiles should be retried immediately or deferred to the end of the queue
+    specFileRetriesDeferred: false,
     //
     // Test reporter for stdout.
     // The only one supported by default is 'dot'
@@ -218,14 +231,14 @@ exports.config = {
         dryRun: false,      // <boolean> invoke formatters without executing steps
         failFast: false,    // <boolean> abort the run on first failure
         format: ['pretty'], // <string[]> (type[:path]) specify the output format, optionally supply PATH to redirect formatter output (repeatable)
-        colors: true,       // <boolean> disable colors in formatter output
         snippets: true,     // <boolean> hide step definition snippets for pending steps
         source: true,       // <boolean> hide source URIs
         profile: [],        // <string[]> (name) specify the profile to use
         strict: false,      // <boolean> fail if there are any undefined or pending steps
-        tagExpression: [],  // <string[]> (expression) only execute the features or scenarios with tags matching the expression
+        tagExpression: '',  // <string> (expression) only execute the features or scenarios with tags matching the expression
         timeout: 20000,     // <number> timeout for step definitions
         ignoreUndefinedDefinitions: false, // <boolean> Enable this config to treat undefined definitions as warnings.
+        scenarioLevelReporter: false // Enable this to make webdriver.io behave as if scenarios and not steps were the tests.
     },
     //
     // =====
@@ -236,7 +249,6 @@ exports.config = {
     // methods. If one of them returns with a promise, WebdriverIO will wait until that promise is
     // resolved to continue.
     //
-
     /**
      * Gets executed once before all workers get launched.
      * @param {Object} config wdio configuration object
@@ -245,7 +257,18 @@ exports.config = {
     onPrepare: function (config, capabilities) {
     },
     /**
-     * Gets executed just before initialising the webdriver session and test framework. It allows you
+     * Gets executed before a worker process is spawned and can be used to initialize specific service
+     * for that worker as well as modify runtime environments in an async fashion.
+     * @param  {String} cid      capability id (e.g 0-0)
+     * @param  {[type]} caps     object containing capabilities for session that will be spawn in the worker
+     * @param  {[type]} specs    specs to be run in the worker process
+     * @param  {[type]} args     object that will be merged with the main configuration once worker is initialized
+     * @param  {[type]} execArgv list of string arguments passed to the worker process
+     */
+    onWorkerStart: function (cid, caps, specs, args, execArgv) {
+    },
+    /**
+     * Gets executed just before initializing the webdriver session and test framework. It allows you
      * to manipulate configurations depending on the capability or spec.
      * @param {Object} config wdio configuration object
      * @param {Array.<Object>} capabilities list of capabilities details
@@ -268,8 +291,8 @@ exports.config = {
     beforeSuite: function (suite) {
     },
     /**
-     * This hook gets executed _before_ a hook within the suite starts.
-     * (For example, this runs before calling `beforeEach` in Mocha.)
+     * This hook gets executed _before_ every hook within the suite starts.
+     * (For example, this runs before calling `before`, `beforeEach`, `after`, `afterEach` in Mocha.)
      *
      * (`stepData` and `world` are Cucumber-specific.)
      *
@@ -277,8 +300,8 @@ exports.config = {
     beforeHook: function (test, context/*, stepData, world*/) {
     },
     /**
-     * Hook that gets executed _after_ a hook within the suite ends.
-     * (For example, this runs after calling `afterEach` in Mocha.)
+     * Hook that gets executed _after_ every hook within the suite ends.
+     * (For example, this runs after calling `before`, `beforeEach`, `after`, `afterEach` in Mocha.)
      *
      * (`stepData` and `world` are Cucumber-specific.)
      */
@@ -355,13 +378,13 @@ exports.config = {
      */
     beforeFeature: function (uri, feature, scenarios) {
     },
-    beforeScenario: function (uri, feature, scenario, sourceLocation) {
+    beforeScenario: function (uri, feature, scenario, sourceLocation, context) {
     },
-    beforeStep: function (uri, feature, stepData, context) {
+    beforeStep: function ({ uri, feature, step }, context) {
     },
-    afterStep: function (uri, feature, { error, result, duration, passed }, stepData, context) {
+    afterStep: function ({ uri, feature, step }, context, { error, result, duration, passed }) {
     },
-    afterScenario: function (uri, feature, scenario, result, sourceLocation) {
+    afterScenario: function (uri, feature, scenario, result, sourceLocation, context) {
     },
     afterFeature: function (uri, feature, scenarios) {
     }

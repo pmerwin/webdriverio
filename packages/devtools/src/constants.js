@@ -5,7 +5,12 @@ export const DEFAULT_Y_POSITION = 0
 
 export const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf'
 
+// https://github.com/puppeteer/puppeteer/blob/083ea41e943e2a20014279fcfceb23c98a1e4491/src/node/Launcher.ts#L168
 export const DEFAULT_FLAGS = [
+    // suppresses Save Password prompt window
+    '--enable-automation',
+    // do not block popups
+    '--disable-popup-blocking',
     // Disable all chrome extensions entirely
     '--disable-extensions',
     // Disable various background network services, including extension updating,
@@ -23,6 +28,7 @@ export const DEFAULT_FLAGS = [
     '--mute-audio',
     // Skip first run wizards
     '--no-first-run',
+    '--no-default-browser-check',
     // chromedriver flags
     '--disable-hang-monitor',
     '--disable-prompt-on-repost',
@@ -34,6 +40,7 @@ export const DEFAULT_FLAGS = [
     '--disable-dev-shm-usage',
     '--disable-ipc-flooding-protection',
     '--disable-renderer-backgrounding',
+    '--force-fieldtrials=*BackgroundTracing/default/',
     '--enable-features=NetworkService,NetworkServiceInProcess',
     /**
      * `site-per-process` affects `page.frames()`, see #4471
@@ -45,6 +52,13 @@ export const DEFAULT_FLAGS = [
 export const CHROME_NAMES = ['chrome', 'googlechrome', 'headlesschrome', 'google-chrome', 'chromium']
 export const FIREFOX_NAMES = ['firefox', 'ff', 'mozilla', 'mozillafirefox', 'headless firefox', 'headlessfirefox']
 export const EDGE_NAMES = ['edge', 'msedge', 'microsoft-edge', 'microsoftedge']
+export const SUPPORTED_BROWSER = [...CHROME_NAMES, ...FIREFOX_NAMES, ...EDGE_NAMES]
+
+export const BROWSER_TYPE = {
+    chrome: 'chrome',
+    firefox: 'firefox',
+    edge: 'edge'
+}
 
 export const DEFAULTS = {
     capabilities: {
@@ -83,9 +97,36 @@ export const SUPPORTED_SELECTOR_STRATEGIES = ['css selector', 'tag name', 'xpath
 export const SERIALIZE_PROPERTY = 'data-devtoolsdriver-fetchedElement'
 export const SERIALIZE_FLAG = '__executeElement'
 
+export const PPTR_LOG_PREFIX = 'puppeteer:protocol'
+
 export const ERROR_MESSAGES = {
     staleElement: {
         name: 'stale element reference',
         message: 'stale element reference: The element reference is stale; either the element is no longer attached to the DOM, it is not in the current frame context, or the document has been refreshed'
     }
 }
+
+export const BROWSER_ERROR_MESSAGES = {
+    firefoxNightly: `Only Nightly release channel is supported in Devtools/Puppeteer for Firefox. Refer to the following issue:
+        https://bugzilla.mozilla.org/show_bug.cgi?id=1606604
+
+        You can use the following link to download Firefox Nightly edition:
+        https://www.mozilla.org/en-US/firefox/channel/desktop/
+
+        Adding the following binary capability in Firefox Options is mandatory to run with Nightly edition:
+
+        'moz:firefoxOptions': {
+            binary: '/path/to/firefox'
+        }
+
+        Note: "Nightly" as a term should be present in the "Firefox Application Name" across all OS's in binary path mentioned above for this to work.`
+}
+
+export const VENDOR_PREFIX = {
+    chrome: 'goog:chromeOptions',
+    firefox: 'moz:firefoxOptions',
+    edge: 'ms:edgeOptions'
+}
+
+export const CHANNEL_FIREFOX_NIGHTLY = 'nightly'
+export const CHANNEL_FIREFOX_TRUNK = 'trunk'

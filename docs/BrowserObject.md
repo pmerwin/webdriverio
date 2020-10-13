@@ -15,7 +15,7 @@ Besides all commands from the [API](API.md), the `browser` object provides some 
 console.log(browser.sessionId) // outputs: "57b15c6ea81d0edb9e5b372da3d9ce28"
 console.log(browser.capabilities)
 /**
- * outputs:
+ * outputs capabilities returned by the browser driver, e.g.:
    { acceptInsecureCerts: false,
      acceptSslCerts: false,
      applicationCacheEnabled: false,
@@ -43,11 +43,18 @@ console.log(browser.capabilities)
      version: '68.0.3440.106',
      webStorageEnabled: true }
  */
+console.log(browser.requestedCapabilities)
+/**
+ * outputs original capabilities set by the user, e.g.:
+ * {
+ *   browserName: 'chrome'
+ * }
+ */
 ```
 
-## Get Config Options
+## Custom Configurations
 
-You can always define custom options within your WDIO config:
+If using the WDIO testrunner you can always define custom configurations within your WDIO config:
 
 ```js
 // wdio.conf.js
@@ -55,6 +62,7 @@ exports.config = {
     // ...
     fakeUser: 'maxmustermann',
     fakePassword: 'foobar',
+    baseUrl: 'example.com',
     // ...
 }
 ```
@@ -71,16 +79,52 @@ console.log(browser.config)
         waitforTimeout: 10000,
         waitforInterval: 250,
         logLevel: 'debug',
-        baseUrl: 'http://localhost',
-        connectionRetryTimeout: 90000,
+        connectionRetryTimeout: 120000,
         connectionRetryCount: 3,
         specs: [ 'err.js' ],
-        fakeUser: 'maxmustermann', // <-- custom option
-        fakePassword: 'foobar', // <-- custom option
+        fakeUser: 'maxmustermann', // <-- custom configuration
+        fakePassword: 'foobar', // <-- custom configuration
+        baseUrl: 'example.com', // <-- custom configuration
         // ...
  */
 
 console.log(browser.config.fakeUser) // outputs: "maxmustermann"
+```
+
+### Configurations versus Options
+
+Custom configurations should not be confused with [Options](Options.md), which are accessed separately.
+
+```js
+console.log(browser.options)
+/**
+ * outputs:
+ * {
+        protocol: 'http',
+        port: 4444,
+        hostname: 'localhost',
+        baseUrl: 'example.com',
+        // ...
+ */
+```
+
+When using the WDIO testrunner, if any configuration and option keys conflict in name (e.g. `baseUrl` in the following code snippets) the option value will take precedence and overwrite the config value.
+
+```js
+// wdio.conf.js
+exports.config = {
+    baseUrl: 'example.com'
+}
+```
+
+```bash
+# testrunner invocation
+$ npm wdio wdio.conf.js --baseUrl foobar.com
+```
+
+```js
+console.log(browser.config.baseUrl) // 'foobar.com', despite being set as 'example.com'
+console.log(browser.options.baseUrl) // 'foobar.com'
 ```
 
 ## Mobile Flags

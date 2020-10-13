@@ -1,7 +1,15 @@
+import path from 'path'
+// eslint-disable-next-line
+import { log as pptrDebugLog } from 'pptrDebug'
+import childProcess from 'child_process'
 import {
     validate, getPrototype, findElement, findElements, getStaleElementError,
-    sanitizeError, transformExecuteArgs, transformExecuteResult, getPages
+    sanitizeError, transformExecuteArgs, transformExecuteResult, getPages,
+    uniq, findByWhich, patchDebug
 } from '../src/utils'
+import { canAccess } from '@wdio/utils'
+
+const debug = jest.requireActual('debug')
 
 const command = {
     endpoint: '/session/:sessionId/element/:elementId/element',
@@ -38,6 +46,32 @@ let pageMock = {
     $x: jest.fn(),
     $: jest.fn()
 }
+
+jest.mock('fs', () => {
+    return {
+        existsSync: (pkgName) => pkgName === 'pptrDebug'
+    }
+})
+
+jest.mock('child_process', () => {
+    let returnValue = false
+    return {
+        execFileSync: jest.fn().mockImplementation(() => {
+            if (!returnValue) {
+                throw new Error('foo not found')
+            }
+            return returnValue
+        }),
+        shouldReturn: (value) => (returnValue = value)
+    }
+})
+
+jest.mock('path', () => {
+    let resolveResult = 'debug'
+    const resolve = jest.fn(() => resolveResult)
+    const setResolveResult = (result) => (resolveResult = result)
+    return { resolve, setResolveResult, dirname: jest.fn() }
+})
 
 describe('validate', () => {
     it('should fail if wrong arguments are passed in', () => {
@@ -234,11 +268,11 @@ describe('sanitizeError', () => {
     })
 })
 
-test('transformExecuteArgs', () => {
+test('transformExecuteArgs', async () => {
     const scope = { elementStore: new Map() }
     scope.elementStore.set('foobar', 'barfoo')
 
-    expect(transformExecuteArgs.call(scope, [
+    expect(await transformExecuteArgs.call(scope, [
         'foo',
         { 'element-6066-11e4-a52e-4f735466cecf': 'foobar' },
         true,
@@ -246,16 +280,16 @@ test('transformExecuteArgs', () => {
     ])).toEqual(['foo', 'barfoo', true, 42])
 })
 
-test('transformExecuteArgs throws stale element if element is not in store', () => {
+test('transformExecuteArgs throws stale element if element is not in store', async () => {
     const scope = { elementStore: new Map() }
     scope.elementStore.set('foobar', 'barfoo')
 
-    expect(() => transformExecuteArgs.call(scope, [
+    expect(transformExecuteArgs.call(scope, [
         'foo',
         { 'element-6066-11e4-a52e-4f735466cecf': 'not-existing' },
         true,
         42
-    ])).toThrow()
+    ])).rejects.toThrow()
 })
 
 describe('transformExecuteResult', () => {
@@ -305,4 +339,41 @@ test('getStaleElementError', () => {
     const err = getStaleElementError('foobar')
     expect(err instanceof Error).toBe(true)
     expect(err.name).toContain('stale element reference')
+})
+
+test('uniq', () => {
+    const listA = [1, 2, 3]
+    expect(listA).toBe(listA)
+    expect(listA).not.toBe(uniq(listA))
+})
+
+test('findByWhich', () => {
+    canAccess.mockImplementation(() => true)
+    expect(findByWhich(['firefox'], [{ regex: /firefox/, weight: 51 }]))
+        .toEqual([])
+
+    childProcess.shouldReturn('/path/to/other/firefox\n')
+    expect(findByWhich(['firefox'], [{ regex: /firefox/, weight: 51 }]))
+        .toEqual(['/path/to/other/firefox'])
+
+    canAccess.mockImplementation(() => {
+        throw new Error('uups')
+    })
+    expect(findByWhich(['firefox'], [{ regex: /firefox/, weight: 51 }]))
+        .toEqual([])
+})
+
+test('patchDebug', () => {
+    const logMock = { debug: jest.fn() }
+    patchDebug(logMock)
+    debug.log('something something - puppeteer:protocol foobar')
+    expect(logMock.debug).toBeCalledWith('foobar')
+})
+
+test('patchDebug with debug not install in puppeteer', () => {
+    const logMock = { debug: jest.fn() }
+    path.setResolveResult('pptrDebug')
+    patchDebug(logMock)
+    pptrDebugLog('something something - puppeteer:protocol barfoo')
+    expect(logMock.debug).toBeCalledWith('barfoo')
 })

@@ -13,7 +13,7 @@ exports.config = {
     //
     hostname: 'localhost',
     port: 4444,
-    path: '/wd/hub',
+    path: '/',
     // Protocol: http | https
     // protocol: 'http',
     //
@@ -27,7 +27,7 @@ exports.config = {
     user: 'webdriverio',
     key:  'xxxxxxxxxxxxxxxx-xxxxxx-xxxxx-xxxxxxxxx',
     //
-    // If you run your tests on SauceLabs you can specify the region you want to run your tests
+    // If you run your tests on Sauce Labs you can specify the region you want to run your tests
     // in via the `region` property. Available short handles for regions are:
     // us: us-west-1 (default)
     // eu: eu-central-1
@@ -64,8 +64,6 @@ exports.config = {
     // files and you set maxInstances to 10; all spec files will get tested at the same time
     // and 30 processes will get spawned. The property handles how many capabilities
     // from the same test should run tests.
-    //
-    //
     maxInstances: 10,
     //
     // If you have trouble getting all important capabilities together, check out the
@@ -122,6 +120,12 @@ exports.config = {
     // The number of times to retry the entire specfile when it fails as a whole
     specFileRetries: 1,
     //
+    // Delay in seconds between the spec file retry attempts
+    specFileRetriesDelay: 0,
+    //
+    // Retried specfiles are inserted at the beginning of the queue and retried immediately
+    specFileRetriesDeferred: false,
+    //
     // Test reporter for stdout.
     // The only one supported by default is 'dot'
     // see also: https://webdriver.io/docs/dot-reporter.html
@@ -169,12 +173,11 @@ exports.config = {
         dryRun: false,      // <boolean> invoke formatters without executing steps
         failFast: false,    // <boolean> abort the run on first failure
         format: ['pretty'], // <string[]> (type[:path]) specify the output format, optionally supply PATH to redirect formatter output (repeatable)
-        colors: true,       // <boolean> disable colors in formatter output
         snippets: true,     // <boolean> hide step definition snippets for pending steps
         source: true,       // <boolean> hide source uris
         profile: [],        // <string[]> (name) specify the profile to use
         strict: false,      // <boolean> fail if there are any undefined or pending steps
-        tags: [],           // <string[]> (expression) only execute the features or scenarios with tags matching the expression
+        tagExpression: '',  // <string> (expression) only execute the features or scenarios with tags matching the expression
         timeout: 20000,     // <number> timeout for step definitions
         ignoreUndefinedDefinitions: false, // <boolean> Enable this config to treat undefined definitions as warnings.
     },
@@ -193,6 +196,17 @@ exports.config = {
      * @param {Array.<Object>} capabilities list of capabilities details
      */
     onPrepare: function (config, capabilities) {
+    },
+    /**
+     * Gets executed before a worker process is spawned and can be used to initialise specific service
+     * for that worker as well as modify runtime environments in an async fashion.
+     * @param  {String} cid      capability id (e.g 0-0)
+     * @param  {[type]} caps     object containing capabilities for session that will be spawn in the worker
+     * @param  {[type]} specs    specs to be run in the worker process
+     * @param  {[type]} args     object that will be merged with the main configuration once worker is initialised
+     * @param  {[type]} execArgv list of string arguments passed to the worker process
+     */
+    onWorkerStart: function (cid, caps, specs, args, execArgv) {
     },
     /**
      * Gets executed just before initialising the webdriver session and test framework. It allows you
@@ -239,13 +253,13 @@ exports.config = {
     //
     /**
      * Runs before a WebdriverIO command gets executed.
-     * @param {String} commandName hook command name
+     * @param {String} commandName command name
      * @param {Array} args arguments that command would receive
      */
     beforeCommand: function (commandName, args) {
     },
     /**
-     * Runs after a WebdriverIO command gets executed
+     * Runs after a WebdriverIO command gets executed.
      * @param {String} commandName hook command name
      * @param {Array} args arguments that command would receive
      * @param {Number} result 0 - command success, 1 - command error
@@ -304,9 +318,9 @@ exports.config = {
     },
     beforeScenario: function (uri, feature, scenario, sourceLocation) {
     },
-    beforeStep: function (uri, feature, stepData, context) {
+    beforeStep: function ({ uri, feature, step }, context) {
     },
-    afterStep: function (uri, feature, { error, result, duration, passed }, stepData, context) {
+    afterStep: function ({ uri, feature, step }, context, { error, result, duration, passed, retries }) {
     },
     afterScenario: function (uri, feature, scenario, result, sourceLocation) {
     },

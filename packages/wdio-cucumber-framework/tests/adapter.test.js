@@ -2,20 +2,11 @@ import path from 'path'
 import mockery from 'mockery'
 import * as Cucumber from 'cucumber'
 import * as utils from '@wdio/utils'
+import { setOptions } from 'expect-webdriverio'
+
 const { executeHooksWithArgs, testFnWrapper } = utils
 
 import CucumberAdapterFactory, { CucumberAdapter } from '../src'
-
-global.browser = {
-    config: {},
-    options: {},
-    capabilities: {
-        device: '',
-        os: 'OS X',
-        os_version: 'Sierra',
-        browserName: 'chrome'
-    }
-}
 
 const wdioReporter = {
     write: jest.fn(),
@@ -23,20 +14,32 @@ const wdioReporter = {
     on: jest.fn()
 }
 
-const adapterFactory = (cucumberOpts = {}, featureFlags = {}) => new CucumberAdapter(
+const adapterFactory = (cucumberOpts = {}, capabilities = {}) => new CucumberAdapter(
     '0-2',
     {
         cucumberOpts,
-        featureFlags,
         beforeStep: 'beforeStep',
         afterStep: 'afterStep',
         beforeHook: 'beforeHook',
         afterHook: 'afterHook'
     },
     ['/foo/bar.feature'],
-    { browserName: 'chrome' },
+    { browserName: 'chrome', ...capabilities },
     wdioReporter
 )
+
+beforeEach(() => {
+    global.browser = {
+        config: {},
+        options: {},
+        capabilities: {
+            device: '',
+            os: 'OS X',
+            os_version: 'Sierra',
+            browserName: 'chrome'
+        }
+    }
+})
 
 test('comes with a factory', async () => {
     expect(typeof CucumberAdapterFactory.init).toBe('function')
@@ -51,6 +54,7 @@ test('should properly set up cucumber', async () => {
     const result = await adapter.run()
     expect(result).toBe(0)
 
+    expect(setOptions).toBeCalledTimes(1)
     expect(adapter.registerRequiredModules).toBeCalled()
     expect(adapter.loadSpecFiles).toBeCalled()
     expect(adapter.wrapSteps).toBeCalled()
@@ -102,6 +106,7 @@ test('should throw when run fails', async () => {
     await adapter.init()
 
     const runtimeError = new Error('boom')
+    // eslint-disable-next-line
     Cucumber.Runtime = jest.fn().mockImplementationOnce(() => ({
         start: () => { throw runtimeError }
     }))
@@ -157,13 +162,6 @@ describe('hasTests', () => {
         adapter.loadSpecFiles = jest.fn()
         await adapter.init()
         expect(adapter.hasTests()).toBe(false)
-    })
-
-    test('should return true if the feature is disabled', async () => {
-        const adapter = adapterFactory(undefined, { specFiltering: false })
-        adapter.loadSpecFiles = jest.fn()
-        await adapter.init()
-        expect(adapter.hasTests()).toBe(true)
     })
 
     test('should return true if there are tests', async () => {
@@ -240,9 +238,15 @@ describe('wrapStep', () => {
         expect(testFnWrapper).toBeCalledWith(...fnWrapperArgs('Step', 3))
 
         const beforeFnArgs = testFnWrapper.mock.calls[0][2].beforeFnArgs
-        expect(beforeFnArgs('context')).toEqual(['uri', 'feature', 'getCurrentStep', 'context'])
+        expect(beforeFnArgs('context')).toEqual([
+            { uri: 'uri', feature: 'feature', step: 'getCurrentStep' },
+            'context']
+        )
         const afterFnArgs = testFnWrapper.mock.calls[0][3].afterFnArgs
-        expect(afterFnArgs('context')).toEqual(['uri', 'feature', 'getCurrentStep', 'context'])
+        expect(afterFnArgs('context')).toEqual([
+            { uri: 'uri', feature: 'feature', step: 'getCurrentStep' },
+            'context']
+        )
     })
 
     test('should be proper type for Hook', () => {
@@ -254,9 +258,15 @@ describe('wrapStep', () => {
         expect(testFnWrapper).toBeCalledWith(...fnWrapperArgs('Hook', 0))
 
         const beforeFnArgs = testFnWrapper.mock.calls[0][2].beforeFnArgs
-        expect(beforeFnArgs('context')).toEqual(['uri', 'feature', 'getCurrentStep', 'context'])
+        expect(beforeFnArgs('context')).toEqual([
+            { uri: 'uri', feature: 'feature', step: 'getCurrentStep' },
+            'context']
+        )
         const afterFnArgs = testFnWrapper.mock.calls[0][3].afterFnArgs
-        expect(afterFnArgs('context')).toEqual(['uri', 'feature', 'getCurrentStep', 'context'])
+        expect(afterFnArgs('context')).toEqual([
+            { uri: 'uri', feature: 'feature', step: 'getCurrentStep' },
+            'context']
+        )
     })
 })
 
@@ -279,13 +289,19 @@ describe('addHooks', () => {
     const beforeFeature = Cucumber.BeforeAll.mock.calls[0][0]
     const afterFeature = Cucumber.AfterAll.mock.calls[0][0]
 
+    afterAll(() => {
+        delete global.result
+    })
+
     test('beforeScenario', () => {
-        beforeScenario({ pickle: 'pickle', sourceLocation: 'sourceLocation' })
-        expect(executeHooksWithArgs).toBeCalledWith(adapterConfig.beforeScenario, ['uri', 'feature', 'pickle', 'sourceLocation'])
+        const world = { pickle: 'pickle', sourceLocation: 'sourceLocation', foo: 'bar' }
+        beforeScenario(world)
+        expect(executeHooksWithArgs).toBeCalledWith(adapterConfig.beforeScenario, ['uri', 'feature', 'pickle', 'sourceLocation', world])
     })
     test('afterScenario', () => {
-        afterScenario({ pickle: 'pickle', sourceLocation: 'sourceLocation', result: 'result' })
-        expect(executeHooksWithArgs).toBeCalledWith(adapterConfig.afterScenario, ['uri', 'feature', 'pickle', 'result', 'sourceLocation'])
+        const world = { pickle: 'pickle', sourceLocation: 'sourceLocation', result: 'result', foo: 'bar' }
+        afterScenario(world)
+        expect(executeHooksWithArgs).toBeCalledWith(adapterConfig.afterScenario, ['uri', 'feature', 'pickle', 'result', 'sourceLocation', world])
     })
     test('beforeFeature', () => {
         beforeFeature()
@@ -297,7 +313,132 @@ describe('addHooks', () => {
     })
 })
 
+describe('skip filters', () => {
+    const CHROME = { browserName:'Chrome', platformName:'linux' }
+    const FIREFOX = { browserName:'firefox', platformName:'linux' }
+
+    test('should skip using single capabilities', () => {
+        const adapter = adapterFactory({}, CHROME)
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName="chrome")'
+                }]
+            }
+        })).toBeFalsy()
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName="firefox")'
+                }]
+            }
+        })).toBeTruthy()
+        expect(adapter.filter({
+            pickle: {
+                tags: []
+            }
+        })).toBeTruthy()
+    })
+
+    test('should skip using multiple properties', () => {
+        const adapter = adapterFactory({}, CHROME)
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName="chrome";platformName="linux")'
+                }]
+            }
+        })).toBeFalsy()
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName="chrome";platformName="windows")'
+                }]
+            }
+        })).toBeTruthy()
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName="firefox")'
+                }]
+            }
+        })).toBeTruthy()
+    })
+
+    test('should skip with lists', () => {
+        const adapter = adapterFactory({}, CHROME)
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName=["Chrome","Firefox"])'
+                }]
+            }
+        })).toBeFalsy()
+    })
+
+    test('should skip all specs if empty', () => {
+        const adapter = adapterFactory({}, CHROME)
+        expect(adapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip()'
+                }]
+            }
+        })).toBeFalsy()
+    })
+
+    test('should skip with regexp', () => {
+        const chromeAdapter = adapterFactory({}, CHROME)
+        const ffAdapter = adapterFactory({}, FIREFOX)
+        expect(chromeAdapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName=/C.*e/)'
+                }]
+            }
+        })).toBeFalsy()
+        expect(ffAdapter.filter({
+            pickle: {
+                tags: [{
+                    name: '@skip(browserName=/c.*e/)'
+                }]
+            }
+        })).toBeTruthy()
+
+    })
+
+    test('should not cause failures if no pickles or tags are provided', () => {
+        const adapter = adapterFactory({}, CHROME)
+        expect(adapter.filter({})).toBeTruthy()
+        expect(adapter.filter({ pickle: {} })).toBeTruthy()
+    })
+
+    test('should also filter triggered events', async () => {
+        const events = {
+            'pickle-accepted': [],
+            'other-event': []
+        }
+        const adapter = adapterFactory({ ignoreUndefinedDefinitions: true })
+        Object.keys(events).forEach(n => adapter.eventBroadcaster.addListener(n, param => events[n].push(param)))
+        Cucumber.getTestCasesFromFilesystem.mockImplementation(({ eventBroadcaster }) => {
+            eventBroadcaster.emit('pickle-accepted', { pickle: { name: 'skipped', tags: [{ name: '@skip()' }] } })
+            eventBroadcaster.emit('pickle-accepted', { pickle: { name: 'should reach', tags: [] } })
+            eventBroadcaster.emit('other-event', {})
+            return []
+        })
+        await adapter.init()
+        expect(events['pickle-accepted'].length).toBe(1)
+        expect(events['other-event'].length).toBe(1)
+        expect(events['pickle-accepted'][0].pickle.name).toBe('should reach')
+    })
+
+})
+
 afterEach(() => {
+    delete global.browser
+    delete global.MY_VAR
+    delete global.MY_PARAMS
+
     Cucumber.setDefinitionFunctionWrapper.mockClear()
     Cucumber.supportCodeLibraryBuilder.reset.mockReset()
     Cucumber.setDefaultTimeout.mockReset()
@@ -306,4 +447,5 @@ afterEach(() => {
     mockery.enable.mockClear()
     mockery.registerMock.mockClear()
     mockery.disable.mockClear()
+    setOptions.mockClear()
 })

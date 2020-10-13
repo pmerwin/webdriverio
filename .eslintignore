@@ -2,4 +2,5 @@
 /packages/**/node_modules
 /packages/node_modules
 /packages/**/coverage
-/tests/typings/**/dist
+/tests/typings
+*.d.ts

@@ -7,7 +7,7 @@ import { getRunnerName } from './utils'
 const log = logger('@wdio/cli')
 
 export default class WDIOCLInterface extends EventEmitter {
-    constructor (config, totalWorkerCnt, isWatchMode = false) {
+    constructor(config, totalWorkerCnt, isWatchMode = false) {
         super()
 
         /**
@@ -21,16 +21,17 @@ export default class WDIOCLInterface extends EventEmitter {
         this.isWatchMode = isWatchMode
         this.inDebugMode = false
         this.specFileRetries = config.specFileRetries || 0
+        this.specFileRetriesDelay = config.specFileRetriesDelay || 0
         this.skippedSpecs = 0
 
-        this.on('job:start', ::this.addJob)
-        this.on('job:end', ::this.clearJob)
+        this.on('job:start', this.addJob.bind(this))
+        this.on('job:end', this.clearJob.bind(this))
 
         this.setup()
         this.onStart()
     }
 
-    setup () {
+    setup() {
         this.jobs = new Map()
         this.start = new Date()
 
@@ -48,7 +49,11 @@ export default class WDIOCLInterface extends EventEmitter {
             /**
              * messages from worker reporters
              */
-            reporter: {}
+            reporter: {},
+            /**
+             * messages from debugger handler
+             */
+            debugger: {}
         }
     }
 
@@ -68,7 +73,8 @@ export default class WDIOCLInterface extends EventEmitter {
     }
 
     onSpecRetry(cid, job, retries) {
-        this.onJobComplete(cid, job, retries, chalk.bold.yellow('RETRYING'))
+        const delayMsg = this.specFileRetriesDelay > 0 ? ` after ${this.specFileRetriesDelay}s` : ''
+        this.onJobComplete(cid, job, retries, chalk.bold(chalk.yellow('RETRYING') + delayMsg))
     }
 
     onSpecPass(cid, job, retries) {
@@ -126,7 +132,7 @@ export default class WDIOCLInterface extends EventEmitter {
     /**
      * clear job from interface
      */
-    clearJob ({ cid, passed, retries }) {
+    clearJob({ cid, passed, retries }) {
         const job = this.jobs.get(cid)
 
         this.jobs.delete(cid)
@@ -156,7 +162,7 @@ export default class WDIOCLInterface extends EventEmitter {
     /**
      * for testing purposes call console log in a static method
      */
-    log (...args) {
+    log(...args) {
         // eslint-disable-next-line no-console
         console.log(...args)
         return args
@@ -165,7 +171,7 @@ export default class WDIOCLInterface extends EventEmitter {
     /**
      * event handler that is triggered when runner sends up events
      */
-    onMessage (event) {
+    onMessage(event) {
         if (event.origin === 'debugger' && event.name === 'start') {
             this.log(chalk.yellow(event.params.introMessage))
             this.inDebugMode = true
@@ -186,10 +192,10 @@ export default class WDIOCLInterface extends EventEmitter {
         }
 
         if (event.origin === 'worker' && event.name === 'error') {
-            return this.log(`[${event.cid}]`, 'Error:', event.content.message || event.content.stack || event.content)
+            return this.log(`[${event.cid}]`, chalk.white.bgRed.bold(' Error: '), event.content.message || event.content.stack || event.content)
         }
 
-        if (event.origin !== 'reporter') {
+        if (event.origin !== 'reporter' && event.origin !== 'debugger') {
             return this.log(event.cid, event.origin, event.name, event.content)
         }
 
@@ -207,7 +213,7 @@ export default class WDIOCLInterface extends EventEmitter {
         }
     }
 
-    sigintTrigger () {
+    sigintTrigger() {
         /**
          * allow to exit repl mode via Ctrl+C
          */
@@ -223,7 +229,7 @@ export default class WDIOCLInterface extends EventEmitter {
         return this.log('\n\n' + shutdownMessage)
     }
 
-    printReporters () {
+    printReporters() {
         /**
          * print reporter output
          */
@@ -248,7 +254,7 @@ export default class WDIOCLInterface extends EventEmitter {
         )
     }
 
-    finalise () {
+    finalise() {
         if (this.isWatchMode) {
             return
         }
